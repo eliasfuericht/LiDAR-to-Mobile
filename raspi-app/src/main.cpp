@@ -43,7 +43,7 @@ void ImuDataCallback(uint32_t handle, const uint8_t dev_type,  LivoxLidarEtherne
   } 
   printf("Imu data callback handle:%u, data_num:%u, data_type:%u, length:%u, frame_counter:%u.\n",
       handle, data->dot_num, data->data_type, data->length, data->frame_cnt);
-}
+} 
 
 // void OnLidarSetIpCallback(livox_vehicle_status status, uint32_t handle, uint8_t ret_code, void*) {
 //   if (status == kVehicleStatusSuccess) {
