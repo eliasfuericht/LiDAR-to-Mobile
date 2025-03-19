@@ -155,11 +155,13 @@ void LivoxLidarPushMsgCallback(const uint32_t handle, const uint8_t dev_type, co
 }
 
 int main(int argc, const char *argv[]) {
+  /*
   if (argc != 2) {
     printf("Params Invalid, must input config path.\n");
     return -1;
   }
-  const std::string path = argv[1];
+  */
+  const std::string path = "config.json";
 
   // REQUIRED, to init Livox SDK2
   if (!LivoxLidarSdkInit(path.c_str())) {
