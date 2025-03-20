@@ -8,11 +8,6 @@
 #include <arpa/inet.h>
 #endif
 
-struct LidarData
-{
-    int x;
-};
-
 void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEthernetPacket* data, void* client_data) {
     if (data == nullptr) {
       return;
