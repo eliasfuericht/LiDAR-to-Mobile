@@ -12,6 +12,8 @@
 #define PHONE_IP "192.168.247.216" // Change this to match your phone’s IP
 #define PHONE_PORT 8888         // The port where the phone listens for UDP data
 
+int i = 0;
+
 struct LidarData
 {
   int n = 1337;
@@ -19,7 +21,8 @@ struct LidarData
 
 void sendLidarData(const LidarData& data, int send_sock, struct sockaddr_in& phone_addr) {
   // Serialize LidarData (assuming it's a struct, adjust as needed)
-  std::string serializedData = "Hallo";
+  i++;
+  std::string serializedData = std::to_string(i);
 
   // Send UDP packet
   ssize_t sent_bytes = sendto(send_sock, serializedData.c_str(), serializedData.size(), 0,
