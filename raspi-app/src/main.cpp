@@ -228,7 +228,10 @@ int main(int argc, const char *argv[]) {
     
     SetLivoxLidarInfoChangeCallback(LidarInfoChangeCallback, nullptr);
     
-    sleep(300);
+    while(true)
+    {
+      sleep(300)
+    }
     
     // cleanup
     LivoxLidarSdkUninit();
