@@ -3,16 +3,33 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 void main() {
-  runApp(UDPListenerApp());
+  runApp(const MyApp());
 }
 
-class UDPListenerApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
-  _UDPListenerAppState createState() => _UDPListenerAppState();
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        appBar: AppBar(title: const Text("LiDAR UDP Stream")),
+        body: const LiDARReceiver(),
+      ),
+    );
+  }
 }
 
-class _UDPListenerAppState extends State<UDPListenerApp> {
-  String receivedData = "Waiting for UDP data...";
+class LiDARReceiver extends StatefulWidget {
+  const LiDARReceiver({super.key});
+
+  @override
+  _LiDARReceiverState createState() => _LiDARReceiverState();
+}
+
+class _LiDARReceiverState extends State<LiDARReceiver> {
+  List<List<int>> receivedPoints = []; // Store received XYZ points
 
   @override
   void initState() {
@@ -21,21 +38,32 @@ class _UDPListenerAppState extends State<UDPListenerApp> {
   }
 
   void startListening() async {
-    // Set up a UDP socket
+    // Bind to UDP socket on port 8888
     RawDatagramSocket socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 8888);
-    print("Listening for UDP packets on port 8888...");
+    print("Listening for LiDAR data on port 8888...");
 
     socket.listen((RawSocketEvent event) {
       if (event == RawSocketEvent.read) {
-        Datagram? datagram = socket.receive();
-        if (datagram != null) {
-          String message = String.fromCharCodes(datagram.data);
-          print("Received: $message");
+        Datagram? dg = socket.receive();
+        if (dg != null) {
+          ByteData byteData = ByteData.sublistView(Uint8List.fromList(dg.data));
 
-          // Update UI with received data
+          List<List<int>> points = [];
+          for (int i = 0; i < byteData.lengthInBytes; i += 12) {
+            if (i + 12 <= byteData.lengthInBytes) {
+              int x = byteData.getInt32(i, Endian.little);
+              int y = byteData.getInt32(i + 4, Endian.little);
+              int z = byteData.getInt32(i + 8, Endian.little);
+              points.add([x, y, z]);
+            }
+          }
+
+          // Update UI with new points
           setState(() {
-            receivedData = message;
+            receivedPoints = points;
           });
+
+          print("Received ${points.length} LiDAR points");
         }
       }
     });
@@ -43,19 +71,16 @@ class _UDPListenerAppState extends State<UDPListenerApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(title: Text("UDP Listener")),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              receivedData,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
+    return Center(
+      child: ListView.builder(
+        itemCount: receivedPoints.length,
+        itemBuilder: (context, index) {
+          return ListTile(
+            title: Text(
+                "Point ${index + 1}: X=${receivedPoints[index][0]}, Y=${receivedPoints[index][1]}, Z=${receivedPoints[index][2]}"
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
