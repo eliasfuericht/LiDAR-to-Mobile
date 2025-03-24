@@ -20,4 +20,4 @@ cd build
 cmake ..
 ```
 
-Hint: Building the raspi-app is tested on Ubuntu 24.04 with g++ 9.5.0. Using more recent compilers like g++13 throws compiler erorrs.
+Hint: Building the raspi-app is tested on Ubuntu 24.04 with g++ 9.5.0. Using more recent compilers like g++13 throws compiler errors.
