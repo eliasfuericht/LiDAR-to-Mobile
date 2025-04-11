@@ -230,7 +230,7 @@ int main(int argc, const char *argv[]) {
     
     while(true)
     {
-      sleep(300)
+      sleep(300);
     }
     
     // cleanup

@@ -25,3 +25,10 @@ target_link_libraries(
 )
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT OutDoARServer)
+
+# copy config.json to build directory after build finished
+add_custom_command(TARGET ${APPLICATION_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy 
+    ${CMAKE_SOURCE_DIR}/extern/Livox-SDK2/samples/livox_lidar_quick_start/config.json
+    ${CMAKE_BINARY_DIR}/
+)
