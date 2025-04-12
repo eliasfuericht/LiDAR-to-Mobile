@@ -1,4 +1,3 @@
-#include <iostream>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -6,11 +5,19 @@
 #include <cstring>
 #include <cstdlib>
 #include <sstream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <thread>
+#include <chrono>
+#include <iostream>
 
+// livox lidar headers
 #include "livox_lidar_def.h"
 #include "livox_lidar_api.h"
 
-#include "common.hpp"
+// Open3D headers
+#include "open3d/Open3D.h"
 
 // receiver
 std::string PHONE_IP;
@@ -18,6 +25,8 @@ int PHONE_PORT = 8888;
 
 int SEND_SOCK;
 struct sockaddr_in PHONE_ADDR = {};
+
+std::shared_ptr<open3d::geometry::PointCloud> previous_cloud = nullptr;
 
 std::string getPhoneIP() {
   char buffer[128];
@@ -38,39 +47,61 @@ std::string getPhoneIP() {
   return ip;
 }
 
-void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEthernetPacket* data, void* client_data) {
-  if (data == nullptr) {
-    return;
-  }
-  printf("point cloud handle: %u, data_num: %d, data_type: %d, length: %d, frame_counter: %d\n",
-    handle, data->dot_num, data->data_type, data->length, data->frame_cnt);
-    
-    
-    if (data->data_type == kLivoxLidarCartesianCoordinateHighData) {
-      int32_t buffer_size = data->dot_num * 3;
-      int32_t pos_buffer[buffer_size];
-      int32_t index = 0;
+void RegisterPointCloud(const std::shared_ptr<open3d::geometry::PointCloud>& source,
+  const std::shared_ptr<open3d::geometry::PointCloud>& target)
+{
+  if (!source || !target) return;
 
-      LivoxLidarCartesianHighRawPoint *p_point_data = (LivoxLidarCartesianHighRawPoint *)data->data;
-      for (uint32_t i = 0; i < data->dot_num; i++) {
-        pos_buffer[index++] = p_point_data[i].x;
-        pos_buffer[index++] = p_point_data[i].y;
-        pos_buffer[index++] = p_point_data[i].z;
-      }
+  open3d::pipelines::registration::RegistrationResult icp_result = open3d::pipelines::registration::RegistrationICP(
+  *source, *target,           // source and target clouds
+  0.1,                        // max correspondence distance (tune this!)
+  Eigen::Matrix4d::Identity(),// initial transformation
+  open3d::pipelines::registration::TransformationEstimationPointToPlane());
 
-      //send pos_buffer
-      ssize_t sent_bytes = sendto(SEND_SOCK, pos_buffer, buffer_size * sizeof(int32_t), 0,
-                                (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
-      
-      if (sent_bytes < 0) {
-      std::cerr << "Failed to send LiDAR data\n";
-      }
+  std::cout << "ICP Fitness: " << icp_result.fitness_ << std::endl;
+  std::cout << "ICP RMSE: " << icp_result.inlier_rmse_ << std::endl;
+  std::cout << "Transformation:\n" << icp_result.transformation_ << std::endl;
+
+  // applying transform
+  std::shared_ptr<open3d::geometry::PointCloud> aligned = std::make_shared<open3d::geometry::PointCloud>(*source);
+  aligned->Transform(icp_result.transformation_);
+}
+
+std::shared_ptr<open3d::geometry::PointCloud> LivoxPacketToPointCloud(const LivoxLidarCartesianHighRawPoint* point_data, size_t num_points) {
+  auto cloud = std::make_shared<open3d::geometry::PointCloud>();
+  for (uint32_t i = 0; i < num_points; ++i) {
+      double x = static_cast<double>(point_data[i].x) / 1000.0;
+      double y = static_cast<double>(point_data[i].y) / 1000.0;
+      double z = static_cast<double>(point_data[i].z) / 1000.0;
+      cloud->points_.emplace_back(x, y, z);
   }
-  else if (data->data_type == kLivoxLidarCartesianCoordinateLowData) {
-    LivoxLidarCartesianLowRawPoint *p_point_data = (LivoxLidarCartesianLowRawPoint *)data->data;
-  } else if (data->data_type == kLivoxLidarSphericalCoordinateData) {
-    LivoxLidarSpherPoint* p_point_data = (LivoxLidarSpherPoint *)data->data;
-  }
+  return cloud;
+}
+
+void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEthernetPacket* data, void* client_data) 
+{
+  if (data == nullptr || data->data_type != kLivoxLidarCartesianCoordinateHighData) return;
+
+  LivoxLidarCartesianHighRawPoint *p_point_data = (LivoxLidarCartesianHighRawPoint *)data->data;
+
+  std::shared_ptr<open3d::geometry::PointCloud> current_cloud = LivoxPacketToPointCloud(p_point_data, data->dot_num);
+
+  if (previous_cloud)
+    RegisterPointCloud(current_cloud, previous_cloud);
+
+  // save current cloud as previous for next iteration
+  previous_cloud = current_cloud;
+
+  // setup buffer to be transfered to phone
+  int32_t buffer_size = data->dot_num * 3;
+  int32_t pos_buffer[buffer_size];
+  
+  //send pos_buffer
+  ssize_t sent_bytes = sendto(SEND_SOCK, pos_buffer, buffer_size * sizeof(int32_t), 0,
+                            (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
+  
+  if (sent_bytes < 0) 
+    std::cerr << "Failed to send LiDAR data\n";
 }
 
 void ImuDataCallback(uint32_t handle, const uint8_t dev_type,  LivoxLidarEthernetPacket* data, void* client_data) {
@@ -79,25 +110,16 @@ void ImuDataCallback(uint32_t handle, const uint8_t dev_type,  LivoxLidarEtherne
   } 
   printf("Imu data callback handle:%u, data_num:%u, data_type:%u, length:%u, frame_counter:%u.\n",
     handle, data->dot_num, data->data_type, data->length, data->frame_cnt);
-  } 
+} 
   
-  // void OnLidarSetIpCallback(livox_vehicle_status status, uint32_t handle, uint8_t ret_code, void*) {
-    //   if (status == kVehicleStatusSuccess) {
-      //     printf("lidar set ip slot: %d, ret_code: %d\n",
-      //       slot, ret_code);
-      //   } else if (status == kVehicleStatusTimeout) {
-        //     printf("lidar set ip number timeout\n");
-        //   }
-        // }
         
-        void WorkModeCallback(livox_status status, uint32_t handle,LivoxLidarAsyncControlResponse *response, void *client_data) {
+void WorkModeCallback(livox_status status, uint32_t handle,LivoxLidarAsyncControlResponse *response, void *client_data) {
   if (response == nullptr) {
     return;
   }
   printf("WorkModeCallack, status:%u, handle:%u, ret_code:%u, error_key:%u",
       status, handle, response->ret_code, response->error_key);
-
-    }
+}
 
 void RebootCallback(livox_status status, uint32_t handle, LivoxLidarRebootResponse* response, void* client_data) {
   if (response == nullptr) {
@@ -174,12 +196,6 @@ void QueryInternalInfoCallback(livox_status status, uint32_t handle,
   SetLivoxLidarWorkMode(handle, kLivoxLidarNormal, WorkModeCallback, nullptr);
   
   QueryLivoxLidarInternalInfo(handle, QueryInternalInfoCallback, nullptr);
-  
-  // LivoxLidarIpInfo lidar_ip_info;
-  // strcpy(lidar_ip_info.ip_addr, "192.168.1.10");
-  // strcpy(lidar_ip_info.net_mask, "255.255.255.0");
-  // strcpy(lidar_ip_info.gw_addr, "192.168.1.1");
-  // SetLivoxLidarLidarIp(handle, &lidar_ip_info, SetIpInfoCallback, nullptr);
 }
 
 void LivoxLidarPushMsgCallback(const uint32_t handle, const uint8_t dev_type, const char* info, void* client_data) {
@@ -191,7 +207,7 @@ void LivoxLidarPushMsgCallback(const uint32_t handle, const uint8_t dev_type, co
 }
 
 int main(int argc, const char *argv[]) {
-    
+    LivoxPacketToPointCloud(nullptr, 1);
     PHONE_IP = getPhoneIP();
     std::cout << "Detected Default Gateway(PHONE): " << PHONE_IP << std::endl;
     
@@ -228,6 +244,7 @@ int main(int argc, const char *argv[]) {
     
     SetLivoxLidarInfoChangeCallback(LidarInfoChangeCallback, nullptr);
     
+    // think about how to terminate the program from the phone
     while(true)
     {
       sleep(300);

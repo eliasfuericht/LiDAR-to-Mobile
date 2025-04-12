@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 message(STATUS "Configuring externals...")
 
 add_subdirectory(extern/Livox-SDK2)
+add_subdirectory(extern/Open3D)
 
 message(STATUS "Externals configured.")
 
@@ -22,6 +23,7 @@ target_include_directories(${APPLICATION_NAME} PRIVATE include)
 target_link_libraries(
   ${APPLICATION_NAME}
   livox_lidar_sdk_static
+  Open3D::Open3D
 )
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT OutDoARServer)
