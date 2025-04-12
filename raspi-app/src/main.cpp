@@ -26,7 +26,7 @@ int PHONE_PORT = 8888;
 int SEND_SOCK;
 struct sockaddr_in PHONE_ADDR = {};
 
-std::shared_ptr<open3d::geometry::PointCloud> previous_cloud = nullptr;
+static std::shared_ptr<open3d::geometry::PointCloud> s_previous_cloud = nullptr;
 
 std::string getPhoneIP() {
   char buffer[128];
@@ -67,37 +67,32 @@ void RegisterPointCloud(const std::shared_ptr<open3d::geometry::PointCloud>& sou
   aligned->Transform(icp_result.transformation_);
 }
 
-std::shared_ptr<open3d::geometry::PointCloud> LivoxPacketToPointCloud(const LivoxLidarCartesianHighRawPoint* point_data, size_t num_points) {
-  auto cloud = std::make_shared<open3d::geometry::PointCloud>();
-  for (uint32_t i = 0; i < num_points; ++i) {
-      double x = static_cast<double>(point_data[i].x) / 1000.0;
-      double y = static_cast<double>(point_data[i].y) / 1000.0;
-      double z = static_cast<double>(point_data[i].z) / 1000.0;
-      cloud->points_.emplace_back(x, y, z);
-  }
-  return cloud;
-}
-
 void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEthernetPacket* data, void* client_data) 
 {
   if (data == nullptr || data->data_type != kLivoxLidarCartesianCoordinateHighData) return;
 
   LivoxLidarCartesianHighRawPoint *p_point_data = (LivoxLidarCartesianHighRawPoint *)data->data;
 
-  std::shared_ptr<open3d::geometry::PointCloud> current_cloud = LivoxPacketToPointCloud(p_point_data, data->dot_num);
+  std::shared_ptr<open3d::geometry::PointCloud> current_cloud;
 
-  if (previous_cloud)
-    RegisterPointCloud(current_cloud, previous_cloud);
+  for (uint32_t i = 0; i < data->dot_num; ++i) {
+    double x = static_cast<double>(p_point_data[i].x) / 1000.0;
+    double y = static_cast<double>(p_point_data[i].y) / 1000.0;
+    double z = static_cast<double>(p_point_data[i].z) / 1000.0;
+    current_cloud->points_.emplace_back(x, y, z);
+}
+
+  if (s_previous_cloud)
+    RegisterPointCloud(current_cloud, s_previous_cloud);
 
   // save current cloud as previous for next iteration
-  previous_cloud = current_cloud;
+  s_previous_cloud = current_cloud;
 
-  // setup buffer to be transfered to phone
-  int32_t buffer_size = data->dot_num * 3;
-  int32_t pos_buffer[buffer_size];
+  int32_t buffer_size = current_cloud->points_.size() * 3;
+  double pos_buffer[buffer_size];
   
   //send pos_buffer
-  ssize_t sent_bytes = sendto(SEND_SOCK, pos_buffer, buffer_size * sizeof(int32_t), 0,
+  ssize_t sent_bytes = sendto(SEND_SOCK, pos_buffer, buffer_size * sizeof(double), 0,
                             (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
   
   if (sent_bytes < 0) 
