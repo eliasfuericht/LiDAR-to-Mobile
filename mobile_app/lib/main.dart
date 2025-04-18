@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 void main() {
   runApp(const MyApp());
@@ -69,19 +70,53 @@ class _LiDARReceiverState extends State<LiDARReceiver> {
     });
   }
 
+  Future<void> saveToPLY() async {
+    if (receivedPoints.isEmpty) {
+      print("No data to save.");
+      return;
+    }
+
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/lidar_output.ply');
+
+    final buffer = StringBuffer();
+    buffer.writeln("ply");
+    buffer.writeln("format ascii 1.0");
+    buffer.writeln("element vertex ${receivedPoints.length}");
+    buffer.writeln("property int x");
+    buffer.writeln("property int y");
+    buffer.writeln("property int z");
+    buffer.writeln("end_header");
+
+    for (var point in receivedPoints) {
+      buffer.writeln("${point[0]} ${point[1]} ${point[2]}");
+    }
+
+    await file.writeAsString(buffer.toString());
+    print("LiDAR data saved to: ${file.path}");
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ListView.builder(
-        itemCount: receivedPoints.length,
-        itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(
-                "Point ${index + 1}: X=${receivedPoints[index][0]}, Y=${receivedPoints[index][1]}, Z=${receivedPoints[index][2]}"
-            ),
-          );
-        },
-      ),
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            itemCount: receivedPoints.length,
+            itemBuilder: (context, index) {
+              return ListTile(
+                title: Text(
+                    "Point ${index + 1}: X=${receivedPoints[index][0]}, Y=${receivedPoints[index][1]}, Z=${receivedPoints[index][2]}"
+                ),
+              );
+            },
+          ),
+        ),
+        ElevatedButton(
+          onPressed: saveToPLY,
+          child: const Text("Save as PLY"),
+        ),
+      ],
     );
   }
 }
