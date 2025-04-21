@@ -1,0 +1,32 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+      "major": 3,
+      "minor": 24,
+      "patch": 0
+    },
+    "configurePresets": [
+      {
+        "name": "Raspi-Release",
+        "generator": "Unix Makefiles",
+        "description": "Raspi Build with min Open3D",
+        "hidden": false,
+        "cacheVariables": {
+          "BUILD_SHARED_LIBS": "OFF",
+          "BUILD_EXAMPLES": "OFF",
+          "BUILD_UNIT_TESTS": "OFF",
+          "BUILD_BENCHMARKS": "OFF",
+          "BUILD_PYTHON_MODULE": "OFF",
+          "BUILD_CUDA_MODULE": "OFF",
+          "BUILD_GUI": "OFF",
+          "BUILD_WEBRTC": "OFF",
+          "BUILD_SYCL_MODULE": "OFF",
+          "BUILD_ISPC_MODULE": "OFF",
+          "BUILD_JUPYTER_EXTENSION": "OFF",
+          "USE_BLAS": "OFF",
+          "CMAKE_BUILD_TYPE": "Release"
+        }
+      }
+    ]
+  }
+  
