@@ -12,11 +12,14 @@
         "description": "Raspi Build with min Open3D",
         "hidden": false,
         "cacheVariables": {
+          "CMAKE_C_COMPILER": "gcc-9",
+          "CMAKE_CXX_COMPILER": "g++-9",
           "BUILD_SHARED_LIBS": "OFF",
-          "BUILD_EXAMPLES": "OFF",
+          "BUILD_EXAMPLES": "OFF", //
+          "BUILD_ISPC": "OFF",
           "BUILD_UNIT_TESTS": "OFF",
           "BUILD_BENCHMARKS": "OFF",
-          "BUILD_PYTHON_MODULE": "OFF",
+          "BUILD_PYTHON_MODULE": "OFF", //
           "BUILD_CUDA_MODULE": "OFF",
           "BUILD_GUI": "OFF",
           "BUILD_WEBRTC": "OFF",
