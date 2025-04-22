@@ -1,6 +1,3 @@
 [submodule "raspi-app/extern/Livox-SDK2"]
 	path = raspi-app/extern/Livox-SDK2
 	url = https://github.com/Livox-SDK/Livox-SDK2
-[submodule "raspi-app/extern/Open3D"]
-	path = raspi-app/extern/Open3D
-	url = https://github.com/isl-org/Open3D.git

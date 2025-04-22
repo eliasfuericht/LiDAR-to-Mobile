@@ -5,20 +5,22 @@ set(CMAKE_CXX_STANDARD 20)
 message(STATUS "Configuring externals...")
 
 #add_subdirectory(extern/Livox-SDK2)
+# linking Open3D prebuilt
+# add_subdirectory(extern/prebuilt/Open3D)
 
-# add_subdirectory(extern/Open3D)
 # linking prebuild Open3D since it takes forever to build on raspi
 add_library(Open3D::Open3D STATIC IMPORTED)
+
 set_target_properties(Open3D::Open3D PROPERTIES
     IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/extern/prebuilt/Open3D/lib/libOpen3D.a"
-    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/extern/prebuilt/Open3D/include"
+    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/extern/prebuilt/Open3D/include;${CMAKE_SOURCE_DIR}/extern/prebuilt/Open3D/include/open3d/3rdparty"
 )
 
 message(STATUS "Externals configured.")
 
 set(APPLICATION_NAME "OutDoARServer")
 
-file(GLOB_RECURSE OPUTDOARSERVER_SOURCES "src/test.cpp")
+file(GLOB_RECURSE OPUTDOARSERVER_SOURCES "src/*.cpp")
 file(GLOB_RECURSE OPUTDOARSERVER_HEADERS "include/*.h")
 
 add_executable( ${APPLICATION_NAME} 
