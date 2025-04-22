@@ -4,7 +4,6 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using UnityEngine;
-using TMPro;
 
 public class UDPReceiver : MonoBehaviour
 {
@@ -12,11 +11,7 @@ public class UDPReceiver : MonoBehaviour
     private Thread receiveThread;
     private const int listenPort = 8888;
 
-    public TextMeshProUGUI textDisplay;  // Assign this in the Unity Inspector
-
-    private string latestMessage = "";
-    private bool messageUpdated = false;
-
+    PointCloudVisualizer pointCloudVisualizer = new PointCloudVisualizer();
     void Start()
     {
         udpClient = new UdpClient(new IPEndPoint(IPAddress.Any, listenPort));
@@ -35,12 +30,22 @@ public class UDPReceiver : MonoBehaviour
             while (true)
             {
                 byte[] data = udpClient.Receive(ref remoteEndPoint);
-                string message = Encoding.UTF8.GetString(data);
-                Debug.Log($"Received Data: {message}");
+                if (data.Length != 0)
+                {
+                    int numDoubles = data.Length / sizeof(double);
+                    int numPoints = numDoubles / 3;
+                    Debug.Log($"{numPoints} points received");
+                    Vector3[] pointData = new Vector3[numPoints];
 
-                // Store data for UI update in main thread
-                latestMessage = message;
-                messageUpdated = true;
+                    for (int i = 0; i < numPoints; i++)
+                    {
+                        pointData[i].x = (float)BitConverter.ToDouble(data, i * 3 * sizeof(double));
+                        pointData[i].y = (float)BitConverter.ToDouble(data, i * 3 + 1 * sizeof(double));
+                        pointData[i].z = (float)BitConverter.ToDouble(data, i * 3 + 2 * sizeof(double));
+                    }
+
+                    pointCloudVisualizer.DisplayPoints(pointData);
+                }
             }
         }
         catch (Exception e)
@@ -51,14 +56,7 @@ public class UDPReceiver : MonoBehaviour
 
     void Update()
     {
-        if (messageUpdated)
-        {
-            if (textDisplay != null)
-            {
-                textDisplay.text = latestMessage;
-            }
-            messageUpdated = false;
-        }
+        
     }
 
     void OnApplicationQuit()
