@@ -234,21 +234,31 @@ int main(int argc, const char *argv[]) {
     const std::string path = "config.json";
 
     // dummy for testing
-    /*
-    for (int i = 0; i < 10000; i++)
+    for (uint32_t i = 0; i < 1000; i++)
     {
-      std::string dummy_data = std::to_string(i);
-  
+      uint32_t buffer_size = 8 * 3;
+      double pos_buffer[buffer_size] = {
+        -sin(i/100.0f), -sin(i/100.0f), -sin(i/100.0f),
+        -sin(i/100.0f), -sin(i/100.0f),  sin(i/100.0f),
+        -sin(i/100.0f),  sin(i/100.0f), -sin(i/100.0f),
+        -sin(i/100.0f),  sin(i/100.0f),  sin(i/100.0f),
+         sin(i/100.0f), -sin(i/100.0f), -sin(i/100.0f),
+         sin(i/100.0f), -sin(i/100.0f),  sin(i/100.0f),
+         sin(i/100.0f),  sin(i/100.0f), -sin(i/100.0f),
+         sin(i/100.0f),  sin(i/100.0f),  sin(i/100.0f)
+      };
+      
       ssize_t sent_bytes = sendto(
-          SEND_SOCK,
-          dummy_data.c_str(),         
-          dummy_data.length(),        
-          0,
-          (struct sockaddr*)&PHONE_ADDR,
-          sizeof(PHONE_ADDR)
+        SEND_SOCK,
+        pos_buffer,
+        buffer_size * sizeof(double),
+        0,
+        (struct sockaddr*)&PHONE_ADDR,
+        sizeof(PHONE_ADDR)
       );
+      std::cout << i << std::endl;
+      std::this_thread::sleep_for(std::chrono::milliseconds(16));
     }
-    */
 
     // init SDK
     if (!LivoxLidarSdkInit(path.c_str())) {
