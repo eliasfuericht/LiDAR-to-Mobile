@@ -4,18 +4,13 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using UnityEngine;
-using TMPro;
 
 public class UDPReceiver : MonoBehaviour
 {
     private UdpClient udpClient;
     private Thread receiveThread;
     private const int listenPort = 8888;
-
-    public TextMeshProUGUI textDisplay;  // Assign this in the Unity Inspector
-
-    private string latestMessage = "";
-    private bool messageUpdated = false;
+    public PointCloudVisualizer visualizer;
 
     void Start()
     {
@@ -35,29 +30,29 @@ public class UDPReceiver : MonoBehaviour
             while (true)
             {
                 byte[] data = udpClient.Receive(ref remoteEndPoint);
-                string message = Encoding.UTF8.GetString(data);
-                Debug.Log($"Received Data: {message}");
+                if (data.Length != 0)
+                {
+                    int numDoubles = data.Length / sizeof(double);
+                    int numPoints = numDoubles / 3;
+                    Debug.Log($"{numPoints} points received");
+                    Vector3[] pointData = new Vector3[numPoints];
 
-                // Store data for UI update in main thread
-                latestMessage = message;
-                messageUpdated = true;
+                    for (int i = 0; i < numPoints; i++)
+                    {
+                        int baseIndex = i * 3 * sizeof(double); 
+
+                        pointData[i].x = (float)BitConverter.ToDouble(data, baseIndex);
+                        pointData[i].y = (float)BitConverter.ToDouble(data, baseIndex + sizeof(double));
+                        pointData[i].z = (float)BitConverter.ToDouble(data, baseIndex + 2 * sizeof(double));
+                    }
+
+                    visualizer.DisplayPoints(pointData);
+                }
             }
         }
         catch (Exception e)
         {
             Debug.LogError($"UDPReceiver error: {e}");
-        }
-    }
-
-    void Update()
-    {
-        if (messageUpdated)
-        {
-            if (textDisplay != null)
-            {
-                textDisplay.text = latestMessage;
-            }
-            messageUpdated = false;
         }
     }
 
