@@ -203,6 +203,7 @@ void LivoxLidarPushMsgCallback(const uint32_t handle, const uint8_t dev_type, co
 
 int main(int argc, const char *argv[]) {
     PHONE_IP = getPhoneIP();
+    //PHONE_IP = "192.168.182.177";
     std::cout << "Detected Default Gateway(PHONE): " << PHONE_IP << std::endl;
     
     // Setting up UDP data transmission to mobile device
@@ -223,16 +224,22 @@ int main(int argc, const char *argv[]) {
     // config file has to be in the same dir as executable
     const std::string path = "config.json";
 
-    int32_t buffer_size = 4; 
-    double pos_buffer[buffer_size];
-
-    pos_buffer[0] = 0.0f;
-    pos_buffer[1] = 1.0f;
-    pos_buffer[2] = 2.0f;
-    pos_buffer[3] = 3.0f;
-
-    ssize_t sent_bytes = sendto(SEND_SOCK, pos_buffer, buffer_size * sizeof(double), 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
+    // dummy for testing
+    for (int i = 0; i < 10000; i++)
+    {
+      std::string dummy_data = std::to_string(i);
   
+      ssize_t sent_bytes = sendto(
+          SEND_SOCK,
+          dummy_data.c_str(),         
+          dummy_data.length(),        
+          0,
+          (struct sockaddr*)&PHONE_ADDR,
+          sizeof(PHONE_ADDR)
+      );
+    }
+    
+
     // init SDK
     if (!LivoxLidarSdkInit(path.c_str())) {
       printf("Livox Init Failed\n");
