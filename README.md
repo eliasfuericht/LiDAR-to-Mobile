@@ -17,7 +17,8 @@ git clone --recursive git@gitlab.cg.tuwien.ac.at:stef/outdoar.git
 cd outdoar/raspi-app
 mkdir build
 cd build
-cmake ..
+cmake -DCMAKE_C_COMPILER=gcc-9 -DCMAKE_CXX_COMPILER=g++-9 ..
+make -j1
 ```
 
-Hint: Building the raspi-app is tested on Ubuntu 24.04 with g++ 9.5.0. Using more recent compilers like g++13 throws compiler errors.
+Hint: Building the raspi-app is tested on Ubuntu 24.04 with g++ 9.5.0. Using more recent compilers like g++13 throws compiler errors. Using more than -j1 might drain the systems memory (tested with 8GB).

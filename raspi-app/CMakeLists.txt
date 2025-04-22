@@ -4,9 +4,7 @@ set(CMAKE_CXX_STANDARD 20)
 
 message(STATUS "Configuring externals...")
 
-#add_subdirectory(extern/Livox-SDK2)
-# linking Open3D prebuilt
-# add_subdirectory(extern/prebuilt/Open3D)
+add_subdirectory(extern/Livox-SDK2)
 
 # linking prebuild Open3D since it takes forever to build on raspi
 add_library(Open3D::Open3D STATIC IMPORTED)
@@ -29,9 +27,15 @@ add_executable( ${APPLICATION_NAME}
 
 target_include_directories(${APPLICATION_NAME} PRIVATE include)
 
+find_package(OpenMP REQUIRED)
+
 target_link_libraries(
   ${APPLICATION_NAME}
+  livox_lidar_sdk_static
   Open3D::Open3D
+  OpenMP::OpenMP_CXX
+  qhull_r
+  qhullcpp
 )
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT OutDoARServer)
