@@ -10,8 +10,8 @@ public class UDPReceiver : MonoBehaviour
     private UdpClient udpClient;
     private Thread receiveThread;
     private const int listenPort = 8888;
+    public PointCloudVisualizer visualizer;
 
-    PointCloudVisualizer pointCloudVisualizer = new PointCloudVisualizer();
     void Start()
     {
         udpClient = new UdpClient(new IPEndPoint(IPAddress.Any, listenPort));
@@ -39,12 +39,14 @@ public class UDPReceiver : MonoBehaviour
 
                     for (int i = 0; i < numPoints; i++)
                     {
-                        pointData[i].x = (float)BitConverter.ToDouble(data, i * 3 * sizeof(double));
-                        pointData[i].y = (float)BitConverter.ToDouble(data, i * 3 + 1 * sizeof(double));
-                        pointData[i].z = (float)BitConverter.ToDouble(data, i * 3 + 2 * sizeof(double));
+                        int baseIndex = i * 3 * sizeof(double); 
+
+                        pointData[i].x = (float)BitConverter.ToDouble(data, baseIndex);
+                        pointData[i].y = (float)BitConverter.ToDouble(data, baseIndex + sizeof(double));
+                        pointData[i].z = (float)BitConverter.ToDouble(data, baseIndex + 2 * sizeof(double));
                     }
 
-                    pointCloudVisualizer.DisplayPoints(pointData);
+                    visualizer.DisplayPoints(pointData);
                 }
             }
         }
@@ -52,11 +54,6 @@ public class UDPReceiver : MonoBehaviour
         {
             Debug.LogError($"UDPReceiver error: {e}");
         }
-    }
-
-    void Update()
-    {
-        
     }
 
     void OnApplicationQuit()
