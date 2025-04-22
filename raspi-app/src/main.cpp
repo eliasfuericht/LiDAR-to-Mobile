@@ -73,14 +73,14 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
 
   LivoxLidarCartesianHighRawPoint *p_point_data = (LivoxLidarCartesianHighRawPoint *)data->data;
 
-  std::shared_ptr<open3d::geometry::PointCloud> current_cloud;
+  std::shared_ptr<open3d::geometry::PointCloud> current_cloud = std::make_shared<open3d::geometry::PointCloud>();
 
   for (uint32_t i = 0; i < data->dot_num; ++i) {
     double x = static_cast<double>(p_point_data[i].x) / 1000.0;
     double y = static_cast<double>(p_point_data[i].y) / 1000.0;
     double z = static_cast<double>(p_point_data[i].z) / 1000.0;
     current_cloud->points_.emplace_back(x, y, z);
-}
+  }
 
   if (s_previous_cloud)
     RegisterPointCloud(current_cloud, s_previous_cloud);
@@ -88,15 +88,25 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
   // save current cloud as previous for next iteration
   s_previous_cloud = current_cloud;
 
-  int32_t buffer_size = current_cloud->points_.size() * 3;
-  double pos_buffer[buffer_size];
-  
-  //send pos_buffer
-  ssize_t sent_bytes = sendto(SEND_SOCK, pos_buffer, buffer_size * sizeof(double), 0,
-                            (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
-  
-  if (sent_bytes < 0) 
-    std::cerr << "Failed to send LiDAR data\n";
+  uint32_t buffer_size = current_cloud->points_.size() * 3;
+  std::vector<double> pos_buffer(buffer_size);
+
+  // Bulk copy if layout is guaranteed contiguous (Eigen usually is in STL containers)
+  memcpy(pos_buffer.data(), current_cloud->points_.data(), buffer_size * sizeof(double));
+
+  // Send the raw buffer over UDP
+  ssize_t sent_bytes = sendto(
+      SEND_SOCK,
+      pos_buffer.data(),
+      buffer_size * sizeof(double),
+      0,
+      (struct sockaddr*)&PHONE_ADDR,
+      sizeof(PHONE_ADDR)
+  );
+
+  if (sent_bytes < 0) {
+      std::cerr << "Failed to send LiDAR data\n";
+  }
 }
 
 void ImuDataCallback(uint32_t handle, const uint8_t dev_type,  LivoxLidarEthernetPacket* data, void* client_data) {
@@ -203,7 +213,6 @@ void LivoxLidarPushMsgCallback(const uint32_t handle, const uint8_t dev_type, co
 
 int main(int argc, const char *argv[]) {
     PHONE_IP = getPhoneIP();
-    //PHONE_IP = "192.168.182.177";
     std::cout << "Detected Default Gateway(PHONE): " << PHONE_IP << std::endl;
     
     // Setting up UDP data transmission to mobile device
@@ -225,6 +234,7 @@ int main(int argc, const char *argv[]) {
     const std::string path = "config.json";
 
     // dummy for testing
+    /*
     for (int i = 0; i < 10000; i++)
     {
       std::string dummy_data = std::to_string(i);
@@ -238,7 +248,7 @@ int main(int argc, const char *argv[]) {
           sizeof(PHONE_ADDR)
       );
     }
-    
+    */
 
     // init SDK
     if (!LivoxLidarSdkInit(path.c_str())) {
