@@ -36,7 +36,7 @@ public class UDPReceiver : MonoBehaviour
             {
                 byte[] data = udpClient.Receive(ref remoteEndPoint);
                 string message = Encoding.UTF8.GetString(data);
-                Debug.Log($"Received: {message}");
+                Debug.Log($"Received Data: {message}");
 
                 // Store data for UI update in main thread
                 latestMessage = message;
