@@ -11,6 +11,7 @@ public class UDPReceiver : MonoBehaviour
     private Thread receiveThread;
     private const int listenPort = 8888;
     public PointCloudVisualizer visualizer;
+    private int m_counter = 0;
 
     void Start()
     {
@@ -39,14 +40,14 @@ public class UDPReceiver : MonoBehaviour
 
                     for (int i = 0; i < numPoints; i++)
                     {
-                        int baseIndex = i * 3 * sizeof(double); 
+                        int baseIndex = i * 3 * sizeof(double);
 
                         pointData[i].x = (float)BitConverter.ToDouble(data, baseIndex);
                         pointData[i].y = (float)BitConverter.ToDouble(data, baseIndex + sizeof(double));
                         pointData[i].z = (float)BitConverter.ToDouble(data, baseIndex + 2 * sizeof(double));
                     }
-
-                    visualizer.DisplayPoints(pointData);
+                    // visualizing is the bottleneck rn
+                    //visualizer.DisplayPoints(pointData);
                 }
             }
         }
