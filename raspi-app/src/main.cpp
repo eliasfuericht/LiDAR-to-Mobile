@@ -108,9 +108,9 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
         ply_file << "ply\n";
         ply_file << "format ascii 1.0\n";
         ply_file << "element vertex " << data->dot_num << "\n";
-        ply_file << "property int x\n";
-        ply_file << "property int y\n";
-        ply_file << "property int z\n";
+        ply_file << "property float x\n";
+        ply_file << "property float y\n";
+        ply_file << "property float z\n";
         ply_file << "end_header\n";
   
         for (uint32_t i = 0; i < data->dot_num; ++i) {
