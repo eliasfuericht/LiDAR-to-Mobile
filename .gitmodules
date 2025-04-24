@@ -1,3 +1,6 @@
 [submodule "raspi-app/extern/Livox-SDK2"]
 	path = raspi-app/extern/Livox-SDK2
 	url = https://github.com/Livox-SDK/Livox-SDK2
+[submodule "raspi-app/extern/rtabmap"]
+	path = raspi-app/extern/rtabmap
+	url = https://github.com/introlab/rtabmap.git
