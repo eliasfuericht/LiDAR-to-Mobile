@@ -19,6 +19,9 @@
 // Open3D headers
 #include "open3d/Open3D.h"
 
+// rtabmap headers
+#include "rtabmap/core/Rtabmap.h"
+
 bool write_pointcloud_to_disk = false;
 
 int counter = 0;
@@ -71,26 +74,14 @@ void RegisterPointCloud(const std::shared_ptr<open3d::geometry::PointCloud>& sou
   open3d::pipelines::registration::TransformationEstimationPointToPlane()
   );
 
-  /*
-  std::cout << "ICP Fitness: " << icp_result.fitness_ << std::endl;
-  std::cout << "ICP RMSE: " << icp_result.inlier_rmse_ << std::endl;
-  std::cout << "Transformation:\n" << icp_result.transformation_ << std::endl;
-  */
-
   std::shared_ptr<open3d::geometry::PointCloud> aligned = std::make_shared<open3d::geometry::PointCloud>(*source);
   aligned->Transform(icp_result.transformation_);
 }
 
-void StorePointClouds()
-{
-
-}
-
-
 void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEthernetPacket* data, void* client_data) 
 {
   static int cloud_counter = 0;
-  // write the current data into a .ply file to "../pointclouds/cloudx.ply" where x is incremented every time
+  
   if (data == nullptr || data->data_type != kLivoxLidarCartesianCoordinateHighData) return;
 
   LivoxLidarCartesianHighRawPoint *p_point_data = (LivoxLidarCartesianHighRawPoint *)data->data;
@@ -154,7 +145,7 @@ void ImuDataCallback(uint32_t handle, const uint8_t dev_type,  LivoxLidarEtherne
   if (data == nullptr) {
     return;
   } 
-  //printf("Imu data callback handle:%u, data_num:%u, data_type:%u, length:%u, frame_counter:%u.\n", handle, data->dot_num, data->data_type, data->length, data->frame_cnt);
+  // printf("Imu data callback handle:%u, data_num:%u, data_type:%u, length:%u, frame_counter:%u.\n", handle, data->dot_num, data->data_type, data->length, data->frame_cnt);
 } 
   
         
@@ -162,21 +153,21 @@ void WorkModeCallback(livox_status status, uint32_t handle,LivoxLidarAsyncContro
   if (response == nullptr) {
     return;
   }
-  //printf("WorkModeCallack, status:%u, handle:%u, ret_code:%u, error_key:%u",status, handle, response->ret_code, response->error_key);
+  // printf("WorkModeCallack, status:%u, handle:%u, ret_code:%u, error_key:%u",status, handle, response->ret_code, response->error_key);
 }
 
 void RebootCallback(livox_status status, uint32_t handle, LivoxLidarRebootResponse* response, void* client_data) {
   if (response == nullptr) {
     return;
   }
-  //printf("RebootCallback, status:%u, handle:%u, ret_code:%u",status, handle, response->ret_code);
+  // printf("RebootCallback, status:%u, handle:%u, ret_code:%u",status, handle, response->ret_code);
 }
 
 void SetIpInfoCallback(livox_status status, uint32_t handle, LivoxLidarAsyncControlResponse *response, void *client_data) {
   if (response == nullptr) {
     return;
   }
-  //printf("LivoxLidarIpInfoCallback, status:%u, handle:%u, ret_code:%u, error_key:%u",status, handle, response->ret_code, response->error_key);
+  // printf("LivoxLidarIpInfoCallback, status:%u, handle:%u, ret_code:%u, error_key:%u",status, handle, response->ret_code, response->error_key);
     
   if (response->ret_code == 0 && response->error_key == 0) {
     LivoxLidarRequestReboot(handle, RebootCallback, nullptr);
@@ -219,9 +210,9 @@ void QueryInternalInfoCallback(livox_status status, uint32_t handle,
     off += kv->length;
   }
   
-  //printf("Host point cloud ip addr:%u.%u.%u.%u, host point cloud port:%u, lidar point cloud port:%u.\n", host_point_ipaddr[0], host_point_ipaddr[1], host_point_ipaddr[2], host_point_ipaddr[3], host_point_port, lidar_point_port);
+  // printf("Host point cloud ip addr:%u.%u.%u.%u, host point cloud port:%u, lidar point cloud port:%u.\n", host_point_ipaddr[0], host_point_ipaddr[1], host_point_ipaddr[2], host_point_ipaddr[3], host_point_port, lidar_point_port);
 
-  //printf("Host imu ip addr:%u.%u.%u.%u, host imu port:%u, lidar imu port:%u.\n", host_imu_ipaddr[0], host_imu_ipaddr[1], host_imu_ipaddr[2], host_imu_ipaddr[3], host_imu_data_port, lidar_imu_data_port);  
+  // printf("Host imu ip addr:%u.%u.%u.%u, host imu port:%u, lidar imu port:%u.\n", host_imu_ipaddr[0], host_imu_ipaddr[1], host_imu_ipaddr[2], host_imu_ipaddr[3], host_imu_data_port, lidar_imu_data_port);  
 }
 
 void LidarInfoChangeCallback(const uint32_t handle, const LivoxLidarInfo* info, void* client_data) {
@@ -240,8 +231,8 @@ void LidarInfoChangeCallback(const uint32_t handle, const LivoxLidarInfo* info, 
 void LivoxLidarPushMsgCallback(const uint32_t handle, const uint8_t dev_type, const char* info, void* client_data) {
   struct in_addr tmp_addr;
   tmp_addr.s_addr = handle;  
-  //std::cout << "handle: " << handle << ", ip: " << inet_ntoa(tmp_addr) << ", push msg info: " << std::endl;
-  //std::cout << info << std::endl;
+  // std::cout << "handle: " << handle << ", ip: " << inet_ntoa(tmp_addr) << ", push msg info: " << std::endl;
+  // std::cout << info << std::endl;
   return;
 }
 
@@ -266,35 +257,6 @@ int main(int argc, const char *argv[]) {
     // Setting up Livox Mid360
     // config file has to be in the same dir as executable
     const std::string path = "config.json";
-
-    /*
-    // dummy for testing
-    for (uint32_t i = 0; i < 1000; i++)
-    {
-      uint32_t buffer_size = 8 * 3;
-      double pos_buffer[buffer_size] = {
-        -sin(i/100.0f), -sin(i/100.0f), -sin(i/100.0f),
-        -sin(i/100.0f), -sin(i/100.0f),  sin(i/100.0f),
-        -sin(i/100.0f),  sin(i/100.0f), -sin(i/100.0f),
-        -sin(i/100.0f),  sin(i/100.0f),  sin(i/100.0f),
-         sin(i/100.0f), -sin(i/100.0f), -sin(i/100.0f),
-         sin(i/100.0f), -sin(i/100.0f),  sin(i/100.0f),
-         sin(i/100.0f),  sin(i/100.0f), -sin(i/100.0f),
-         sin(i/100.0f),  sin(i/100.0f),  sin(i/100.0f)
-      };
-      
-      ssize_t sent_bytes = sendto(
-        SEND_SOCK,
-        pos_buffer,
-        buffer_size * sizeof(double),
-        0,
-        (struct sockaddr*)&PHONE_ADDR,
-        sizeof(PHONE_ADDR)
-      );
-      std::cout << i << std::endl;
-      std::this_thread::sleep_for(std::chrono::milliseconds(16));
-    }
-    */
 
     // init SDK
     if (!LivoxLidarSdkInit(path.c_str())) {
