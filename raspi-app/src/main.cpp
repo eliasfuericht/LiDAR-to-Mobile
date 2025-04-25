@@ -17,9 +17,8 @@
 #include "livox_lidar_def.h"
 #include "livox_lidar_api.h"
 
-bool write_pointcloud_to_disk = false;
-
-int point_data_counter = 0;
+bool s_write_pointcloud_to_disk = true;
+int s_point_data_counter = 0;
 
 // receiver
 std::string PHONE_IP;
@@ -27,6 +26,19 @@ int PHONE_PORT = 8888;
 
 int SEND_SOCK;
 struct sockaddr_in PHONE_ADDR = {};
+
+LivoxLidarImuRawPoint current_IMU_data;
+
+// accumulate 200 packages (around 100ms of scanning)
+#define NUM_PACKAGES 200
+#define NUM_POINTS_PER_PACKAGE 96
+#define NUM_POINTS (NUM_POINTS_PER_PACKAGE * NUM_PACKAGES)
+#define BUFFER_SIZE (NUM_POINTS * 3)
+int32_t s_pos_buffer[BUFFER_SIZE];
+
+int32_t s_counter = 0;
+
+int32_t s_buffer_index = 0;
 
 std::string getPhoneIP() {
   char buffer[128];
@@ -47,25 +59,25 @@ std::string getPhoneIP() {
   return ip;
 }
 
-void WriteToDisk(LivoxLidarCartesianHighRawPoint *p_point_data, int32_t dot_num)
+void WriteToDisk()
 {
   std::ostringstream filename;
-  filename << "../pointclouds/cloud" << point_data_counter++ << ".ply";
+  filename << "../pointclouds/cloud" << s_point_data_counter++ << ".ply";
 
   std::ofstream ply_file(filename.str());
   if (ply_file.is_open()) 
   {
       ply_file << "ply\n";
       ply_file << "format ascii 1.0\n";
-      ply_file << "element vertex " << dot_num << "\n";
+      ply_file << "element vertex " << NUM_POINTS << "\n";
       ply_file << "property float x\n";
       ply_file << "property float y\n";
       ply_file << "property float z\n";
       ply_file << "end_header\n";
 
-      for (uint32_t i = 0; i < dot_num; ++i) 
+      for (uint32_t i = 0; i < BUFFER_SIZE; i+=3) 
       {
-        ply_file << std::fixed << p_point_data[i].x << " " << p_point_data[i].y << " " << p_point_data[i].z << "\n";
+        ply_file << std::fixed << s_pos_buffer[i] << " " << s_pos_buffer[i+1] << " " << s_pos_buffer[i+2] << "\n";
       }
       ply_file.close();
   } 
@@ -84,38 +96,44 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
     
   if (data->data_type == kLivoxLidarCartesianCoordinateHighData) 
   {
+    s_counter++;
     int32_t dot_num = data->dot_num;
-    int32_t buffer_size = dot_num * 3;
-    int32_t pos_buffer[buffer_size];
-    int32_t index = 0;
-
+    
     LivoxLidarCartesianHighRawPoint *p_point_data = (LivoxLidarCartesianHighRawPoint *)data->data;
-
-    if (write_pointcloud_to_disk)
-    { 
-      WriteToDisk(p_point_data, dot_num);
-    }
-
+    
     for (uint32_t i = 0; i < dot_num; i++) 
     {
-      pos_buffer[index++] = p_point_data[i].x;
-      pos_buffer[index++] = p_point_data[i].y;
-      pos_buffer[index++] = p_point_data[i].z;
+      s_pos_buffer[s_buffer_index++] = p_point_data[i].x;
+      s_pos_buffer[s_buffer_index++] = p_point_data[i].y;
+      s_pos_buffer[s_buffer_index++] = p_point_data[i].z;
     }
 
-    //send pos_buffer
-    ssize_t sent_bytes = sendto(SEND_SOCK, pos_buffer, buffer_size * sizeof(int32_t), 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
+    if (s_counter % NUM_PACKAGES == 0)
+    {
+      if (s_write_pointcloud_to_disk)
+      { 
+        WriteToDisk();
+      }
+      s_buffer_index = 0;
+
+      // register now?
+
+      //send pos_buffer
+      ssize_t sent_bytes = sendto(SEND_SOCK, s_pos_buffer, BUFFER_SIZE * sizeof(int32_t), 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
+    }
   }
 }
 
 void ImuDataCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEthernetPacket* data, void* client_data) 
 {
-  if (data == nullptr) {
+  if (data == nullptr) 
+  {
     return;
   }
     
-  if (data->data_type == kLivoxLidarImuData) {
-    
+  if (data->data_type == kLivoxLidarImuData) 
+  {
+    LivoxLidarImuRawPoint *imu_data = (LivoxLidarImuRawPoint *)data->data;
   }
 }
 
