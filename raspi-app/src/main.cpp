@@ -17,28 +17,35 @@
 #include "livox_lidar_def.h"
 #include "livox_lidar_api.h"
 
+// used for writing data to disk
 bool s_write_pointcloud_to_disk = false;
-int s_point_data_counter = 0;
+int s_disc_data_counter = 0;
 
 // receiver
 std::string PHONE_IP;
 int PHONE_PORT = 8888;
-
-int SEND_SOCK;
 struct sockaddr_in PHONE_ADDR = {};
+int SEND_SOCK;
 
-
-// accumulate 200 packages (around 100ms of scanning)
-#define NUM_PACKAGES 200
+// variables for point data accumulation
+// NUM_PACKAGES: Number of point-data-packages (UDP packages) that get accumulated
+// 200 ~= 100ms of frames
+#define NUM_PACKAGES 50
+// NUM_POINTS_PER_PACKAGE: Number of points received from sensor per package (x,y,z)
 #define NUM_POINTS_PER_PACKAGE 96
-#define NUM_POINTS (NUM_POINTS_PER_PACKAGE * NUM_PACKAGES)
-#define BUFFER_SIZE (NUM_POINTS * 3)
+// TOTAL_NUM_POINTS: Number of points accumulated 
+#define TOTAL_NUM_POINTS (NUM_POINTS_PER_PACKAGE * NUM_PACKAGES)
+// BUFFER_SIZE: Size of buffer preallocated
+#define BUFFER_SIZE (TOTAL_NUM_POINTS * 3)
+// keeps track of how many packages were received, reset when NUM_PACKAGES is reached
+int32_t s_package_counter = 0;
+
+// Holds accumulated points
 int32_t s_pos_buffer[BUFFER_SIZE];
-
-int32_t s_counter = 0;
-
+// keeps track of index into buffer
 int32_t s_buffer_index = 0;
 
+// IMU data
 LivoxLidarImuRawPoint s_current_imu_data;
 
 std::string getPhoneIP() {
@@ -63,14 +70,14 @@ std::string getPhoneIP() {
 void WriteToDisk()
 {
   std::ostringstream filename;
-  filename << "../pointclouds/cloud" << s_point_data_counter++ << ".ply";
+  filename << "../pointclouds/cloud" << s_disc_data_counter++ << ".ply";
 
   std::ofstream ply_file(filename.str());
   if (ply_file.is_open()) 
   {
       ply_file << "ply\n";
       ply_file << "format ascii 1.0\n";
-      ply_file << "element vertex " << NUM_POINTS << "\n";
+      ply_file << "element vertex " << TOTAL_NUM_POINTS << "\n";
       ply_file << "property float x\n";
       ply_file << "property float y\n";
       ply_file << "property float z\n";
@@ -97,7 +104,7 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
     
   if (data->data_type == kLivoxLidarCartesianCoordinateHighData) 
   {
-    s_counter++;
+    s_package_counter++;
     int32_t dot_num = data->dot_num;
     
     LivoxLidarCartesianHighRawPoint *p_point_data = (LivoxLidarCartesianHighRawPoint *)data->data;
@@ -111,7 +118,7 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
       s_pos_buffer[s_buffer_index++] = p_point_data[i].z;
     }
 
-    if (s_counter % NUM_PACKAGES == 0)
+    if (s_package_counter % NUM_PACKAGES == 0)
     {
       // reset index into buffer
       s_buffer_index = 0;
@@ -123,8 +130,15 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
 
       // register now?
 
-      //send pos_buffer
+      // max size of udp package is 65535 bytes
+      // split up into multiple if needed
+      int32_t udp_package_size = BUFFER_SIZE * sizeof(int32_t);
+
+      // send pos_buffer
       ssize_t sent_bytes = sendto(SEND_SOCK, s_pos_buffer, BUFFER_SIZE * sizeof(int32_t), 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
+
+      if (sent_bytes < 0) 
+        std::cerr << "Failed to send LiDAR data\n";
     }
   }
 }
