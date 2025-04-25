@@ -34,7 +34,7 @@ int SEND_SOCK;
 // sensor sends 2083 packages @ 96 vertices per second (200000 points/s)
 // 200 ~= 100ms of frames
 // TODO: find out when vertical fov is covered
-#define NUM_PACKAGES 50
+#define NUM_PACKAGES 200
 // NUM_POINTS_PER_PACKAGE: Number of points received from sensor per package (x,y,z)
 #define NUM_POINTS_PER_PACKAGE 96
 // TOTAL_NUM_POINTS: Number of points accumulated 
@@ -44,8 +44,8 @@ int SEND_SOCK;
 // keeps track of how many packages were received, reset when NUM_PACKAGES is reached
 int32_t s_package_counter = 0;
 
-//
-#define MAX_BUFFER_SIZE 65535
+// split up buffer into smaller ones if this number is reached
+#define MAX_UDP_BUFFER_BYTES 65507
 // Holds accumulated points
 std::array<int32_t, BUFFER_SIZE> s_pos_buffer;
 // keeps track of index into buffer
@@ -140,10 +140,10 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
 
       ssize_t sent_bytes = -1;
 
-      if (udp_package_size < MAX_BUFFER_SIZE)
+      if (udp_package_size > MAX_UDP_BUFFER_BYTES)
       {
         std::vector<std::vector<int32_t>> split_buffers;
-        int32_t num_split_buffers = std::ceil(udp_package_size / MAX_BUFFER_SIZE);
+        int32_t num_split_buffers = std::ceil((float)udp_package_size / (float)MAX_UDP_BUFFER_BYTES);
         int32_t num_elements_per_buffer = BUFFER_SIZE / num_split_buffers;
 
         split_buffers.resize(num_split_buffers);
@@ -155,9 +155,9 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
           std::memcpy( split_buffers[i].data(), s_pos_buffer.data() + i * num_elements_per_buffer, num_elements_per_buffer * sizeof(int32_t));
         }
 
-        udp_package_size = num_elements_per_buffer;
+        udp_package_size = num_elements_per_buffer * sizeof(int32_t);
 
-        for (auto buffer : split_buffers)
+        for (std::vector<int32_t> buffer : split_buffers)
         {
           sent_bytes = sendto(SEND_SOCK, buffer.data(), udp_package_size, 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
         }
