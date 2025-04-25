@@ -40,14 +40,14 @@ int SEND_SOCK;
 // TOTAL_NUM_POINTS: Number of points accumulated 
 #define TOTAL_NUM_POINTS (NUM_POINTS_PER_PACKAGE * NUM_PACKAGES)
 // BUFFER_SIZE: Size of buffer preallocated
-#define BUFFER_SIZE (TOTAL_NUM_POINTS * 3)
+#define BUFFER_NUM_ELEMENTS (TOTAL_NUM_POINTS * 3)
 // keeps track of how many packages were received, reset when NUM_PACKAGES is reached
 int32_t s_package_counter = 0;
 
 // split up buffer into smaller ones if this number is reached
 #define MAX_UDP_BUFFER_BYTES 65507
 // Holds accumulated points
-std::array<int32_t, BUFFER_SIZE> s_pos_buffer;
+std::array<int32_t, BUFFER_NUM_ELEMENTS> s_pos_buffer;
 // keeps track of index into buffer
 int32_t s_buffer_index = 0;
 
@@ -89,7 +89,7 @@ void WriteToDisk()
       ply_file << "property float z\n";
       ply_file << "end_header\n";
 
-      for (uint32_t i = 0; i < BUFFER_SIZE; i+=3) 
+      for (uint32_t i = 0; i < BUFFER_NUM_ELEMENTS; i+=3) 
       {
         ply_file << std::fixed << s_pos_buffer[i] << " " << s_pos_buffer[i+1] << " " << s_pos_buffer[i+2] << "\n";
       }
@@ -98,6 +98,40 @@ void WriteToDisk()
   else 
   {
       std::cerr << "Failed to open file for writing: " << filename.str() << std::endl;
+  }
+}
+
+void SendDataToMobile()
+{
+  int32_t current_udp_bytes = BUFFER_NUM_ELEMENTS * sizeof(int32_t);
+
+  ssize_t sent_bytes = -1;
+
+  // if current buffer is too big, subdivide buffer
+  if (current_udp_bytes > MAX_UDP_BUFFER_BYTES)
+  {
+    // calculate how many buffers are needed
+    int32_t num_split_buffers = std::ceil((float)current_udp_bytes / (float)MAX_UDP_BUFFER_BYTES);
+
+    // calculate how many elements per buffer
+    int32_t num_elements_per_buffer = BUFFER_NUM_ELEMENTS / num_split_buffers;
+
+    // recalculate package size
+    current_udp_bytes = num_elements_per_buffer * sizeof(int32_t);
+
+    for (int i = 0; i < num_split_buffers; i++)
+    {
+      sent_bytes = sendto(SEND_SOCK, s_pos_buffer.data() + i * num_elements_per_buffer, current_udp_bytes, 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
+    }
+  }
+  else
+  {
+    sent_bytes = sendto(SEND_SOCK, s_pos_buffer.data(), current_udp_bytes, 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
+  }
+
+  if (sent_bytes < 0)
+  {
+    std::cerr << "Failed to send data to mobile\n";
   }
 }
 
@@ -111,65 +145,33 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
   if (data->data_type == kLivoxLidarCartesianCoordinateHighData) 
   {
     s_package_counter++;
-    int32_t dot_num = data->dot_num;
+
+    int32_t num_points = data->dot_num;
     
     LivoxLidarCartesianHighRawPoint *p_point_data = (LivoxLidarCartesianHighRawPoint *)data->data;
 
     // integrate s_current_imu_data here somewhere?
     
-    for (uint32_t i = 0; i < dot_num; i++) 
+    // fill buffer with elements
+    for (uint32_t i = 0; i < num_points; i++) 
     {
       s_pos_buffer[s_buffer_index++] = p_point_data[i].x;
       s_pos_buffer[s_buffer_index++] = p_point_data[i].y;
       s_pos_buffer[s_buffer_index++] = p_point_data[i].z;
     }
 
+    // send data as soon as NUM_PACKAGES is reached
     if (s_package_counter % NUM_PACKAGES == 0)
     {
       // reset index into buffer
       s_buffer_index = 0;
 
+      SendDataToMobile();
+      
       if (s_write_pointcloud_to_disk)
       {
         WriteToDisk();
       }
-
-      // max size of udp package is 65535 bytes
-      // split up into multiple if needed
-      int32_t udp_package_size = BUFFER_SIZE * sizeof(int32_t);
-
-      ssize_t sent_bytes = -1;
-
-      if (udp_package_size > MAX_UDP_BUFFER_BYTES)
-      {
-        std::vector<std::vector<int32_t>> split_buffers;
-        int32_t num_split_buffers = std::ceil((float)udp_package_size / (float)MAX_UDP_BUFFER_BYTES);
-        int32_t num_elements_per_buffer = BUFFER_SIZE / num_split_buffers;
-
-        split_buffers.resize(num_split_buffers);
-  
-        for (int i = 0; i < num_split_buffers; i++)
-        {
-          // memcopy num_elements_per_buffer from s_pos_buffer with an offset of i*num_elements_per_buffer to this: std::vector<std::vector<int32_t>> split_buffers;
-          split_buffers[i].resize(num_elements_per_buffer);
-          std::memcpy( split_buffers[i].data(), s_pos_buffer.data() + i * num_elements_per_buffer, num_elements_per_buffer * sizeof(int32_t));
-        }
-
-        udp_package_size = num_elements_per_buffer * sizeof(int32_t);
-
-        for (std::vector<int32_t> buffer : split_buffers)
-        {
-          sent_bytes = sendto(SEND_SOCK, buffer.data(), udp_package_size, 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
-        }
-      }
-      else
-      {
-        // send pos_buffer
-        sent_bytes = sendto(SEND_SOCK, s_pos_buffer.data(), udp_package_size, 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
-      }
-
-      if (sent_bytes < 0)
-        std::cerr << "Failed to send LiDAR data\n";
     }
   }
 }
