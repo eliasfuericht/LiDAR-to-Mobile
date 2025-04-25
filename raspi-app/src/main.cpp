@@ -12,6 +12,8 @@
 #include <chrono>
 #include <iostream> 
 #include <fstream>
+#include <cmath>
+#include <vector>
 
 // livox lidar headers
 #include "livox_lidar_def.h"
@@ -29,7 +31,9 @@ int SEND_SOCK;
 
 // variables for point data accumulation
 // NUM_PACKAGES: Number of point-data-packages (UDP packages) that get accumulated
+// sensor sends 2083 packages @ 96 vertices per second (200000 points/s)
 // 200 ~= 100ms of frames
+// TODO: find out when vertical fov is covered
 #define NUM_PACKAGES 50
 // NUM_POINTS_PER_PACKAGE: Number of points received from sensor per package (x,y,z)
 #define NUM_POINTS_PER_PACKAGE 96
@@ -40,8 +44,10 @@ int SEND_SOCK;
 // keeps track of how many packages were received, reset when NUM_PACKAGES is reached
 int32_t s_package_counter = 0;
 
+//
+#define MAX_BUFFER_SIZE 65535
 // Holds accumulated points
-int32_t s_pos_buffer[BUFFER_SIZE];
+std::array<int32_t, BUFFER_SIZE> s_pos_buffer;
 // keeps track of index into buffer
 int32_t s_buffer_index = 0;
 
@@ -128,16 +134,41 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
         WriteToDisk();
       }
 
-      // register now?
-
       // max size of udp package is 65535 bytes
       // split up into multiple if needed
       int32_t udp_package_size = BUFFER_SIZE * sizeof(int32_t);
 
-      // send pos_buffer
-      ssize_t sent_bytes = sendto(SEND_SOCK, s_pos_buffer, BUFFER_SIZE * sizeof(int32_t), 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
+      ssize_t sent_bytes = -1;
 
-      if (sent_bytes < 0) 
+      if (udp_package_size < MAX_BUFFER_SIZE)
+      {
+        std::vector<std::vector<int32_t>> split_buffers;
+        int32_t num_split_buffers = std::ceil(udp_package_size / MAX_BUFFER_SIZE);
+        int32_t num_elements_per_buffer = BUFFER_SIZE / num_split_buffers;
+
+        split_buffers.resize(num_split_buffers);
+  
+        for (int i = 0; i < num_split_buffers; i++)
+        {
+          // memcopy num_elements_per_buffer from s_pos_buffer with an offset of i*num_elements_per_buffer to this: std::vector<std::vector<int32_t>> split_buffers;
+          split_buffers[i].resize(num_elements_per_buffer);
+          std::memcpy( split_buffers[i].data(), s_pos_buffer.data() + i * num_elements_per_buffer, num_elements_per_buffer * sizeof(int32_t));
+        }
+
+        udp_package_size = num_elements_per_buffer;
+
+        for (auto buffer : split_buffers)
+        {
+          sent_bytes = sendto(SEND_SOCK, buffer.data(), udp_package_size, 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
+        }
+      }
+      else
+      {
+        // send pos_buffer
+        sent_bytes = sendto(SEND_SOCK, s_pos_buffer.data(), udp_package_size, 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
+      }
+
+      if (sent_bytes < 0)
         std::cerr << "Failed to send LiDAR data\n";
     }
   }
