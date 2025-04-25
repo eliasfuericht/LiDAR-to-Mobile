@@ -19,22 +19,11 @@
 #include "livox_lidar_def.h"
 #include "livox_lidar_api.h"
 
-// used for writing data to disk
-bool s_write_pointcloud_to_disk = false;
-int s_disc_data_counter = 0;
-
-// receiver
-std::string PHONE_IP;
-int PHONE_PORT = 8888;
-struct sockaddr_in PHONE_ADDR = {};
-int SEND_SOCK;
-
 // variables for point data accumulation
 // NUM_PACKAGES: Number of point-data-packages (UDP packages) that get accumulated
 // sensor sends 2083 packages @ 96 vertices per second (200000 points/s)
-// 200 ~= 100ms of frames
-// TODO: find out when vertical fov is covered
-#define NUM_PACKAGES 200
+// 208 ~= 100ms of frames (vertical fov also covered)
+#define NUM_PACKAGES 208
 // NUM_POINTS_PER_PACKAGE: Number of points received from sensor per package (x,y,z)
 #define NUM_POINTS_PER_PACKAGE 96
 // TOTAL_NUM_POINTS: Number of points accumulated 
@@ -53,6 +42,16 @@ int32_t s_buffer_index = 0;
 
 // IMU data
 LivoxLidarImuRawPoint s_current_imu_data;
+
+// writing data to disk
+bool s_write_pointcloud_to_disk = false;
+int s_disc_data_counter = 0;
+
+// udp receiver data
+std::string PHONE_IP;
+int PHONE_PORT = 8888;
+struct sockaddr_in PHONE_ADDR = {};
+int SEND_SOCK;
 
 std::string getPhoneIP() {
   char buffer[128];
@@ -76,7 +75,7 @@ std::string getPhoneIP() {
 void WriteToDisk()
 {
   std::ostringstream filename;
-  filename << "../pointclouds/cloud" << s_disc_data_counter++ << ".ply";
+  filename << "../data/accumulated_frames/" << NUM_PACKAGES << "_" << s_disc_data_counter++ << ".ply";
 
   std::ofstream ply_file(filename.str());
   if (ply_file.is_open()) 
@@ -171,6 +170,7 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
       if (s_write_pointcloud_to_disk)
       {
         WriteToDisk();
+        std::cout << "stop" << std::endl;
       }
     }
   }

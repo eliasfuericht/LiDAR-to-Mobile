@@ -1,0 +1,2 @@
+The first number in the filename indicate how many frames were accumulated - the bigger the number, the more detailed the pointcloud.
+The second number is the counter how many packages were sent to the mobile (can be ignored).
