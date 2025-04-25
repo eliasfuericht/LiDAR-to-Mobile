@@ -17,7 +17,7 @@
 #include "livox_lidar_def.h"
 #include "livox_lidar_api.h"
 
-bool s_write_pointcloud_to_disk = true;
+bool s_write_pointcloud_to_disk = false;
 int s_point_data_counter = 0;
 
 // receiver
@@ -27,7 +27,6 @@ int PHONE_PORT = 8888;
 int SEND_SOCK;
 struct sockaddr_in PHONE_ADDR = {};
 
-LivoxLidarImuRawPoint current_IMU_data;
 
 // accumulate 200 packages (around 100ms of scanning)
 #define NUM_PACKAGES 200
@@ -39,6 +38,8 @@ int32_t s_pos_buffer[BUFFER_SIZE];
 int32_t s_counter = 0;
 
 int32_t s_buffer_index = 0;
+
+LivoxLidarImuRawPoint s_current_imu_data;
 
 std::string getPhoneIP() {
   char buffer[128];
@@ -100,6 +101,8 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
     int32_t dot_num = data->dot_num;
     
     LivoxLidarCartesianHighRawPoint *p_point_data = (LivoxLidarCartesianHighRawPoint *)data->data;
+
+    // integrate s_current_imu_data here somewhere?
     
     for (uint32_t i = 0; i < dot_num; i++) 
     {
@@ -110,11 +113,13 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
 
     if (s_counter % NUM_PACKAGES == 0)
     {
+      // reset index into buffer
+      s_buffer_index = 0;
+
       if (s_write_pointcloud_to_disk)
-      { 
+      {
         WriteToDisk();
       }
-      s_buffer_index = 0;
 
       // register now?
 
@@ -134,6 +139,7 @@ void ImuDataCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEthernet
   if (data->data_type == kLivoxLidarImuData) 
   {
     LivoxLidarImuRawPoint *imu_data = (LivoxLidarImuRawPoint *)data->data;
+    s_current_imu_data = *imu_data;
   }
 }
 
