@@ -12,7 +12,7 @@ public class UDPReceiver : MonoBehaviour
     private Thread receiveThread;
     private const int listenPort = 8888;
 
-    private ParticleSystem particleSystem;
+    private new ParticleSystem particleSystem;
     private static int maxPointCount = 19968;
     private ParticleSystem.Particle[] particles = new ParticleSystem.Particle[maxPointCount];
     private int index = 0;
