@@ -19,11 +19,21 @@
 #include "livox_lidar_def.h"
 #include "livox_lidar_api.h"
 
+// rtabmap headers
+#include "rtabmap/core/Rtabmap.h"
+#include "rtabmap/core/util3d_transforms.h"
+#include "rtabmap/core/util3d_registration.h"
+#include <pcl/filters/voxel_grid.h>
+
 // variables for point data accumulation
-// NUM_PACKAGES: Number of point-data-packages (UDP packages) that get accumulated
+
 // sensor sends 2083 packages @ 96 vertices per second (200000 points/s)
+#define TOTAL_PACKAGES_PER_SECOND 2083
+// how fast lidardata is sent to mobile in ms(faster = more responsive but less detail)
 // 208 ~= 100ms of frames (vertical fov also covered)
-#define NUM_PACKAGES 208
+#define UPDATE_SPEED 10
+// NUM_PACKAGES: Number of point-data-packages (UDP packages) that get accumulated
+#define NUM_PACKAGES (TOTAL_PACKAGES_PER_SECOND / UPDATE_SPEED)
 // NUM_POINTS_PER_PACKAGE: Number of points received from sensor per package (x,y,z)
 #define NUM_POINTS_PER_PACKAGE 96
 // TOTAL_NUM_POINTS: Number of points accumulated 
@@ -138,6 +148,67 @@ void SendDataToMobile()
   }
 }
 
+void RegisterPointCloud()
+{
+    static pcl::PointCloud<pcl::PointXYZ>::Ptr previous_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    const float scale_factor = 0.001f; // Assuming mm to m
+
+    // Parse s_pos_buffer
+    pcl::PointCloud<pcl::PointXYZ>::Ptr current_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    for (size_t i = 0; i < BUFFER_NUM_ELEMENTS; i += 3)
+    {
+      pcl::PointXYZ pt;
+      pt.x = static_cast<float>(s_pos_buffer[i]) * scale_factor;
+      pt.y = static_cast<float>(s_pos_buffer[i + 1]) * scale_factor;
+      pt.z = static_cast<float>(s_pos_buffer[i + 2]) * scale_factor;
+      current_cloud->points.push_back(pt);
+    }
+    current_cloud->width = current_cloud->points.size();
+    current_cloud->height = 1;
+    current_cloud->is_dense = false;
+
+    pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
+    voxel_filter.setLeafSize(0.05f, 0.05f, 0.05f); // 5cm voxel size (adjust based on your data scale)
+    pcl::PointCloud<pcl::PointXYZ>::Ptr filtered(new pcl::PointCloud<pcl::PointXYZ>);
+    voxel_filter.setInputCloud(current_cloud);
+    voxel_filter.filter(*filtered);
+    current_cloud = filtered;
+
+
+    // Register
+    if (!previous_cloud->empty())
+    {
+      bool has_converged = false;
+      pcl::PointCloud<pcl::PointXYZ>::Ptr aligned(new pcl::PointCloud<pcl::PointXYZ>);
+      
+      // Call the ICP function from RTAB-Map
+      rtabmap::util3d::icp(
+        current_cloud,
+        previous_cloud,
+        0.1,          // maxCorrespondenceDistance
+        10,           // maximumIterations
+        has_converged,
+        *aligned,
+        0.001f        // epsilon (early stop)
+      );      
+
+      // Use the aligned cloud as the new current cloud
+      current_cloud = aligned;
+    }
+
+    // Store back into s_pos_buffer
+    size_t idx = 0;
+    for (const auto& pt : current_cloud->points)
+    {
+        s_pos_buffer[idx++] = static_cast<int32_t>(pt.x / scale_factor);
+        s_pos_buffer[idx++] = static_cast<int32_t>(pt.y / scale_factor);
+        s_pos_buffer[idx++] = static_cast<int32_t>(pt.z / scale_factor);
+    }
+
+    // Update previous frame
+    *previous_cloud = *current_cloud;
+}
+
 void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEthernetPacket* data, void* client_data) 
 {
   if (data == nullptr) 
@@ -168,6 +239,8 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
     {
       // reset index into buffer
       s_buffer_index = 0;
+
+      //RegisterPointCloud();
 
       SendDataToMobile();
       

@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 20)
 message(STATUS "Configuring externals...")
 
 add_subdirectory(extern/Livox-SDK2)
-# add_subdirectory(extern/rtabmap)
+add_subdirectory(extern/rtabmap)
 
 # linking prebuild Open3D since it takes forever to build on raspi
 # add_library(Open3D::Open3D STATIC IMPORTED)
@@ -37,7 +37,7 @@ target_link_libraries(
   #OpenMP::OpenMP_CXX
   #qhull_r
   #qhullcpp
-  #rtabmap::rtabmap
+  rtabmap::rtabmap
 )
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT OutDoARServer)
