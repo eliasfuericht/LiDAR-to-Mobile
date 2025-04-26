@@ -33,21 +33,26 @@ public class UDPReceiver : MonoBehaviour
                 byte[] data = udpClient.Receive(ref remoteEndPoint);
                 if (data.Length != 0)
                 {
-                    int numDoubles = data.Length / sizeof(double);
-                    int numPoints = numDoubles / 3;
-                    Debug.Log($"{numPoints} points received");
-                    Vector3[] pointData = new Vector3[numPoints];
+                    int numInts = data.Length / sizeof(int);
+                    
+                    m_counter += numInts;
+
+                    int numPoints = numInts / 3;
+                    
+                    Vector3Int[] pointData = new Vector3Int[numPoints];
 
                     for (int i = 0; i < numPoints; i++)
                     {
-                        int baseIndex = i * 3 * sizeof(double);
+                        int baseIndex = i * 3 * sizeof(int);
 
-                        pointData[i].x = (float)BitConverter.ToDouble(data, baseIndex);
-                        pointData[i].y = (float)BitConverter.ToDouble(data, baseIndex + sizeof(double));
-                        pointData[i].z = (float)BitConverter.ToDouble(data, baseIndex + 2 * sizeof(double));
+                        int x = BitConverter.ToInt32(data, baseIndex);
+                        int y = BitConverter.ToInt32(data, baseIndex + sizeof(int));
+                        int z = BitConverter.ToInt32(data, baseIndex + 2 * sizeof(int));
+
+                        pointData[i] = new Vector3Int(x, y, z);
                     }
                     // visualizing is the bottleneck rn
-                    //visualizer.DisplayPoints(pointData);
+                    
                 }
             }
         }
