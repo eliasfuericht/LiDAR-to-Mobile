@@ -53,6 +53,8 @@ int PHONE_PORT = 8888;
 struct sockaddr_in PHONE_ADDR = {};
 int SEND_SOCK;
 
+int counter = 0;
+
 std::string getPhoneIP() {
   char buffer[128];
   std::string result = "";
@@ -112,7 +114,7 @@ void SendDataToMobile()
     // calculate how many buffers are needed
     int32_t num_split_buffers = std::ceil((float)current_udp_bytes / (float)MAX_UDP_BUFFER_BYTES);
 
-    // calculate how many elements per buffer
+    // calculate how many elements (one element is one component of a point, so x or y or z) per buffer
     int32_t num_elements_per_buffer = BUFFER_NUM_ELEMENTS / num_split_buffers;
 
     // recalculate package size
@@ -122,9 +124,11 @@ void SendDataToMobile()
     {
       sent_bytes = sendto(SEND_SOCK, s_pos_buffer.data() + i * num_elements_per_buffer, current_udp_bytes, 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
     }
+    counter++;
   }
   else
   {
+
     sent_bytes = sendto(SEND_SOCK, s_pos_buffer.data(), current_udp_bytes, 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
   }
 
