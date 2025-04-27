@@ -28,7 +28,7 @@ const int NUM_TOTAL_PACKAGES_PER_SECOND = 2083;
 const int NUM_POINTS_PER_PACKAGE = 96;
 
 // NUM_PACKAGES: Number of point-data-packages (UDP packages) that get accumulated
-int s_num_packages;
+int s_num_packages = 1;
 // TOTAL_NUM_POINTS: Number of points accumulated 
 int s_total_num_points;
 // BUFFER_SIZE: Size of buffer preallocated
@@ -52,8 +52,6 @@ std::string PHONE_IP;
 int PHONE_PORT = 8888;
 struct sockaddr_in PHONE_ADDR = {};
 int SEND_SOCK;
-
-int counter = 0;
 
 std::string getPhoneIP() {
   char buffer[128];
@@ -124,7 +122,6 @@ void SendDataToMobile()
     {
       sent_bytes = sendto(SEND_SOCK, s_pos_buffer.data() + i * num_elements_per_buffer, current_udp_bytes, 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
     }
-    counter++;
   }
   else
   {
@@ -203,24 +200,29 @@ bool is_number(const std::string& s) {
 
 int main(int argc, const char *argv[]) 
 {
-  if (argc != 2 || !is_number(argv[1]) || std::atof(argv[1]) < 1) {
-    printf("Params Invalid, please specify the data rate in milliseconds (positive integer).\n");
+  if (argc != 2 || !is_number(argv[1]) || std::atof(argv[1]) < 0) {
+    printf("Params Invalid, please specify the data rate in milliseconds (integer).\n");
     return -1;
   }
 
   float update_rate = std::atof(argv[1]);
-  float data_rate = update_rate / 1000.0f;
 
-  // setting up buffer that holds data for forwarding to mobile
-  s_num_packages = (int)(NUM_TOTAL_PACKAGES_PER_SECOND * data_rate);
+  if (update_rate != 0)
+  {
+    float data_rate = update_rate / 1000.0f;
+  
+    // setting up buffer that holds data for forwarding to mobile
+    s_num_packages = (int)(NUM_TOTAL_PACKAGES_PER_SECOND * data_rate);
+  }
+
   s_total_num_points = NUM_POINTS_PER_PACKAGE * s_num_packages;
   s_buffer_num_elements = s_total_num_points * 3;
   s_pos_buffer.reserve(s_buffer_num_elements);
-  
-  std::cout << s_num_packages << " packages will be sent every " << update_rate << " milliseconds." << std::endl;
+
+  std::cout << s_num_packages << " packages will be cummulated and a total of " 
+            << s_total_num_points << " will be sent every " << update_rate << " milliseconds." << std::endl;
 
   PHONE_IP = getPhoneIP();
-  std::cout << "Detected Default Gateway(PHONE): " << PHONE_IP << std::endl;
   
   // Setting up UDP data transmission to mobile device
   SEND_SOCK = socket(AF_INET, SOCK_DGRAM, 0);
