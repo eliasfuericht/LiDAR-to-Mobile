@@ -4,7 +4,7 @@ public class MobileOrbitCamera : MonoBehaviour
 {
     public float rotationSpeed = 0.2f;
     public float zoomSpeed = 0.05f;
-    public float distance = 5.0f;
+    public float distance = 20.0f;
     public float minDistance = 0.1f;
     public float maxDistance = 100.0f;
 
