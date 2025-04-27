@@ -149,7 +149,7 @@ void SendDataToMobile()
 
   if (sent_bytes < 0)
   {
-    std::cerr << "Failed to send data to mobile\n";
+    std::cerr << "Failed to send point data to mobile\n";
   }
 }
 
@@ -207,31 +207,46 @@ void ImuDataCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEthernet
     LivoxLidarImuRawPoint *imu_data = (LivoxLidarImuRawPoint *)data->data;
     s_current_imu_data = *imu_data;
 
-    std::vector<int32_t> flag_prepended_buffer;
+    std::vector<float> flag_prepended_buffer;
 
-    // TODO: send IMU data
-    //flag_prepended_buffer[0] = FLAG_POINT_DATA;
+    flag_prepended_buffer.resize(6 + 1);
+
+    *reinterpret_cast<int*>(&flag_prepended_buffer[0]) = FLAG_IMU_DATA;
+
+    flag_prepended_buffer[1] = s_current_imu_data.acc_x;
+    flag_prepended_buffer[2] = s_current_imu_data.acc_y;
+    flag_prepended_buffer[3] = s_current_imu_data.acc_z;
+    flag_prepended_buffer[4] = s_current_imu_data.gyro_x;
+    flag_prepended_buffer[5] = s_current_imu_data.gyro_y;
+    flag_prepended_buffer[6] = s_current_imu_data.gyro_z;
+
+    ssize_t sent_bytes = sendto(s_send_sock, flag_prepended_buffer.data(), flag_prepended_buffer.size() * sizeof(float), 0, (struct sockaddr*)&s_phone_adress, sizeof(s_phone_adress));
+  
+    if (sent_bytes < 0)
+    {
+      std::cerr << "Failed to send IMU data to mobile\n";
+    }
   }
 }
 
-bool is_number(const std::string& s) {
-  for (char const& ch : s) {
-      if (!std::isdigit(ch)) return false;
+bool is_number(const std::string& s) 
+{
+  for (char const& ch : s) 
+  {
+    if (!std::isdigit(ch)) return false;
   }
   return true;
 }
 
 int main(int argc, const char *argv[]) 
 {
-  #if 0
-  if (argc != 2 || !is_number(argv[1]) || std::atof(argv[1]) < 0) {
+  if (argc != 2 || !is_number(argv[1]) || std::atof(argv[1]) < 0) 
+  {
     printf("Params Invalid, please specify the data rate in milliseconds (integer).\n");
     return -1;
   }
   
   float update_rate = std::atof(argv[1]);
-  #endif
-  float update_rate = 50;
 
   if (update_rate != 0)
   {
