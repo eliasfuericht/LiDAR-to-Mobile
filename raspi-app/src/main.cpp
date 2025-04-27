@@ -196,46 +196,52 @@ void ImuDataCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEthernet
 
 int main(int argc, const char *argv[]) 
 {
-    PHONE_IP = getPhoneIP();
-    std::cout << "Detected Default Gateway(PHONE): " << PHONE_IP << std::endl;
-    
-    // Setting up UDP data transmission to mobile device
-    SEND_SOCK = socket(AF_INET, SOCK_DGRAM, 0);
-    if (SEND_SOCK < 0) {
-      std::cerr << "Error creating UDP socket\n";
-      return 1;
-    }
-    
-    PHONE_ADDR.sin_family = AF_INET;
-    PHONE_ADDR.sin_port = htons(PHONE_PORT);
-    inet_pton(AF_INET, PHONE_IP.c_str(), &PHONE_ADDR.sin_addr);
-    
-    // Sending data
-    std::cout << "Sending data to " << PHONE_IP << " via port " << PHONE_PORT << std::endl;
-  
-    // Setting up Livox Mid360
-    // config file has to be in the same dir as executable
-    const std::string path = "config.json";
-
-    // init SDK
-    if (!LivoxLidarSdkInit(path.c_str())) {
-      printf("Livox Init Failed\n");
-      LivoxLidarSdkUninit();
-      return -1;
-    }
-    
-    SetLivoxLidarPointCloudCallBack(PointCloudCallback, nullptr);
-
-    SetLivoxLidarImuDataCallback(ImuDataCallback, nullptr);
-
-    // think about how to terminate the program from the phone
-    while(true)
-    {
-      sleep(300);
-    }
-    
-    // cleanup
-    LivoxLidarSdkUninit();
-    close(SEND_SOCK);
-    return 0;
+  if (argc != 2) {
+    printf("Params Invalid, please specify the data rate in ms.\n");
+    return -1;
   }
+
+  const std::string path = argv[1];
+  PHONE_IP = getPhoneIP();
+  std::cout << "Detected Default Gateway(PHONE): " << PHONE_IP << std::endl;
+  
+  // Setting up UDP data transmission to mobile device
+  SEND_SOCK = socket(AF_INET, SOCK_DGRAM, 0);
+  if (SEND_SOCK < 0) {
+    std::cerr << "Error creating UDP socket\n";
+    return 1;
+  }
+  
+  PHONE_ADDR.sin_family = AF_INET;
+  PHONE_ADDR.sin_port = htons(PHONE_PORT);
+  inet_pton(AF_INET, PHONE_IP.c_str(), &PHONE_ADDR.sin_addr);
+  
+  // Sending data
+  std::cout << "Sending data to " << PHONE_IP << " via port " << PHONE_PORT << std::endl;
+
+  // Setting up Livox Mid360
+  // config file has to be in the same dir as executable
+  const std::string path = "config.json";
+
+  // init SDK
+  if (!LivoxLidarSdkInit(path.c_str())) {
+    printf("Livox Init Failed\n");
+    LivoxLidarSdkUninit();
+    return -1;
+  }
+  
+  SetLivoxLidarPointCloudCallBack(PointCloudCallback, nullptr);
+
+  SetLivoxLidarImuDataCallback(ImuDataCallback, nullptr);
+
+  // think about how to terminate the program from the phone
+  while(true)
+  {
+    sleep(300);
+  }
+  
+  // cleanup
+  LivoxLidarSdkUninit();
+  close(SEND_SOCK);
+  return 0;
+}
