@@ -21,12 +21,9 @@
 
 // variables for point data accumulation
 // sensor sends 2083 packages @ 96 vertices per second (200000 points/s)
-#define TOTAL_PACKAGES_PER_SECOND 2083
-// how fast lidardata is sent to mobile in ms(faster = more responsive but less detail)
-// 208 ~= 100ms of frames (vertical fov also covered)
-#define UPDATE_SPEED 10
 // NUM_PACKAGES: Number of point-data-packages (UDP packages) that get accumulated
-#define NUM_PACKAGES (TOTAL_PACKAGES_PER_SECOND / UPDATE_SPEED)
+// 208 ~= 100ms of frames (vertical fov also covered)
+#define NUM_PACKAGES 208
 // NUM_POINTS_PER_PACKAGE: Number of points received from sensor per package (x,y,z)
 #define NUM_POINTS_PER_PACKAGE 96
 // TOTAL_NUM_POINTS: Number of points accumulated 
