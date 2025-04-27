@@ -5,15 +5,6 @@ set(CMAKE_CXX_STANDARD 20)
 message(STATUS "Configuring externals...")
 
 add_subdirectory(extern/Livox-SDK2)
-add_subdirectory(extern/rtabmap)
-
-# linking prebuild Open3D since it takes forever to build on raspi
-# add_library(Open3D::Open3D STATIC IMPORTED)
-
-# set_target_properties(Open3D::Open3D PROPERTIES
-#    IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/extern/prebuilt/Open3D/lib/libOpen3D.a"
-#    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/extern/prebuilt/Open3D/include;${CMAKE_SOURCE_DIR}/extern/prebuilt/Open3D/include/open3d/3rdparty"
-#)
 
 message(STATUS "Externals configured.")
 
@@ -28,16 +19,9 @@ add_executable( ${APPLICATION_NAME}
 
 target_include_directories(${APPLICATION_NAME} PRIVATE include)
 
-# find_package(OpenMP REQUIRED)
-
 target_link_libraries(
   ${APPLICATION_NAME}
   livox_lidar_sdk_static
-  #Open3D::Open3D
-  #OpenMP::OpenMP_CXX
-  #qhull_r
-  #qhullcpp
-  rtabmap::rtabmap
 )
 
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT OutDoARServer)
@@ -45,6 +29,6 @@ set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT O
 # copy config.json to build directory after build finished
 add_custom_command(TARGET ${APPLICATION_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy 
-    ${CMAKE_SOURCE_DIR}/extern/Livox-SDK2/samples/livox_lidar_quick_start/config.json
+    ${CMAKE_SOURCE_DIR}/receiver-config.json
     ${CMAKE_BINARY_DIR}/
 )

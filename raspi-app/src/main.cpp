@@ -20,25 +20,25 @@
 #include "livox_lidar_api.h"
 
 // variables for point data accumulation
+// split up buffer into smaller ones if this number is exceeded
+#define MAX_UDP_BUFFER_BYTES 65507
 // sensor sends 2083 packages @ 96 vertices per second (200000 points/s)
-// NUM_PACKAGES: Number of point-data-packages (UDP packages) that get accumulated
-// 208 ~= 100ms of frames (vertical fov also covered)
-#define NUM_PACKAGES 208
+const int NUM_TOTAL_PACKAGES_PER_SECOND = 2083;
 // NUM_POINTS_PER_PACKAGE: Number of points received from sensor per package (x,y,z)
-#define NUM_POINTS_PER_PACKAGE 96
+const int NUM_POINTS_PER_PACKAGE = 96;
+
+// NUM_PACKAGES: Number of point-data-packages (UDP packages) that get accumulated
+int s_num_packages;
 // TOTAL_NUM_POINTS: Number of points accumulated 
-#define TOTAL_NUM_POINTS (NUM_POINTS_PER_PACKAGE * NUM_PACKAGES)
+int s_total_num_points;
 // BUFFER_SIZE: Size of buffer preallocated
-#define BUFFER_NUM_ELEMENTS (TOTAL_NUM_POINTS * 3)
+int s_buffer_num_elements;
 // keeps track of how many packages were received, reset when NUM_PACKAGES is reached
 int32_t s_package_counter = 0;
-
-// split up buffer into smaller ones if this number is reached
-#define MAX_UDP_BUFFER_BYTES 65507
-// Holds accumulated points
-std::array<int32_t, BUFFER_NUM_ELEMENTS> s_pos_buffer;
 // keeps track of index into buffer
 int32_t s_buffer_index = 0;
+
+std::vector<int32_t> s_pos_buffer;
 
 // IMU data
 LivoxLidarImuRawPoint s_current_imu_data;
@@ -77,20 +77,20 @@ std::string getPhoneIP() {
 void WriteToDisk()
 {
   std::ostringstream filename;
-  filename << "../data/accumulated_frames/" << NUM_PACKAGES << "_" << s_disc_data_counter++ << ".ply";
+  filename << "../data/accumulated_frames/" << s_num_packages << "_" << s_disc_data_counter++ << ".ply";
 
   std::ofstream ply_file(filename.str());
   if (ply_file.is_open()) 
   {
       ply_file << "ply\n";
       ply_file << "format ascii 1.0\n";
-      ply_file << "element vertex " << TOTAL_NUM_POINTS << "\n";
+      ply_file << "element vertex " << s_total_num_points << "\n";
       ply_file << "property float x\n";
       ply_file << "property float y\n";
       ply_file << "property float z\n";
       ply_file << "end_header\n";
 
-      for (uint32_t i = 0; i < BUFFER_NUM_ELEMENTS; i+=3) 
+      for (uint32_t i = 0; i < s_buffer_num_elements; i+=3) 
       {
         ply_file << std::fixed << s_pos_buffer[i] << " " << s_pos_buffer[i+1] << " " << s_pos_buffer[i+2] << "\n";
       }
@@ -104,7 +104,7 @@ void WriteToDisk()
 
 void SendDataToMobile()
 {
-  int32_t current_udp_bytes = BUFFER_NUM_ELEMENTS * sizeof(int32_t);
+  int32_t current_udp_bytes = s_buffer_num_elements * sizeof(int32_t);
 
   ssize_t sent_bytes = -1;
 
@@ -115,7 +115,7 @@ void SendDataToMobile()
     int32_t num_split_buffers = std::ceil((float)current_udp_bytes / (float)MAX_UDP_BUFFER_BYTES);
 
     // calculate how many elements (one element is one component of a point, so x or y or z) per buffer
-    int32_t num_elements_per_buffer = BUFFER_NUM_ELEMENTS / num_split_buffers;
+    int32_t num_elements_per_buffer = s_buffer_num_elements / num_split_buffers;
 
     // recalculate package size
     current_udp_bytes = num_elements_per_buffer * sizeof(int32_t);
@@ -164,7 +164,7 @@ void PointCloudCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEther
     }
 
     // send data as soon as NUM_PACKAGES is reached
-    if (s_package_counter % NUM_PACKAGES == 0)
+    if (s_package_counter % s_num_packages == 0)
     {
       // reset index into buffer
       s_buffer_index = 0;
@@ -194,14 +194,31 @@ void ImuDataCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEthernet
   }
 }
 
+bool is_number(const std::string& s) {
+  for (char const& ch : s) {
+      if (!std::isdigit(ch)) return false;
+  }
+  return true;
+}
+
 int main(int argc, const char *argv[]) 
 {
-  if (argc != 2) {
-    printf("Params Invalid, please specify the data rate in ms.\n");
+  if (argc != 2 || !is_number(argv[1]) || std::atof(argv[1]) < 1) {
+    printf("Params Invalid, please specify the data rate in milliseconds (positive integer).\n");
     return -1;
   }
 
-  const std::string path = argv[1];
+  float update_rate = std::atof(argv[1]);
+  float data_rate = update_rate / 1000.0f;
+
+  // setting up buffer that holds data for forwarding to mobile
+  s_num_packages = (int)(NUM_TOTAL_PACKAGES_PER_SECOND * data_rate);
+  s_total_num_points = NUM_POINTS_PER_PACKAGE * s_num_packages;
+  s_buffer_num_elements = s_total_num_points * 3;
+  s_pos_buffer.reserve(s_buffer_num_elements);
+  
+  std::cout << s_num_packages << " packages will be sent every " << update_rate << " milliseconds." << std::endl;
+
   PHONE_IP = getPhoneIP();
   std::cout << "Detected Default Gateway(PHONE): " << PHONE_IP << std::endl;
   
@@ -220,11 +237,9 @@ int main(int argc, const char *argv[])
   std::cout << "Sending data to " << PHONE_IP << " via port " << PHONE_PORT << std::endl;
 
   // Setting up Livox Mid360
-  // config file has to be in the same dir as executable
-  const std::string path = "config.json";
-
   // init SDK
-  if (!LivoxLidarSdkInit(path.c_str())) {
+  // config file has to be in the same dir as executable
+  if (!LivoxLidarSdkInit("receiver-config.json")) {
     printf("Livox Init Failed\n");
     LivoxLidarSdkUninit();
     return -1;
