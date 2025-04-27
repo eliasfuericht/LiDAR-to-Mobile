@@ -19,9 +19,16 @@
 #include "livox_lidar_def.h"
 #include "livox_lidar_api.h"
 
+enum DataFlags
+{
+  FLAG_POINT_DATA = 0,
+  FLAG_IMU_DATA = 1
+};
+
 // variables for point data accumulation
 // split up buffer into smaller ones if this number is exceeded
-#define MAX_UDP_BUFFER_BYTES 65507
+// leave space for udp headers and custom flag
+#define MAX_UDP_BUFFER_BYTES 65503
 // sensor sends 2083 packages @ 96 vertices per second (200000 points/s)
 const int NUM_TOTAL_PACKAGES_PER_SECOND = 2083;
 // NUM_POINTS_PER_PACKAGE: Number of points received from sensor per package (x,y,z)
@@ -48,10 +55,10 @@ bool s_write_pointcloud_to_disk = false;
 int s_disc_data_counter = 0;
 
 // udp receiver data
-std::string PHONE_IP;
-int PHONE_PORT = 8888;
-struct sockaddr_in PHONE_ADDR = {};
-int SEND_SOCK;
+std::string s_phone_IP;
+int s_phone_port = 8888;
+struct sockaddr_in s_phone_adress = {};
+int s_send_sock;
 
 std::string getPhoneIP() {
   char buffer[128];
@@ -106,6 +113,8 @@ void SendDataToMobile()
 
   ssize_t sent_bytes = -1;
 
+  std::vector<int32_t> flag_prepended_buffer;
+
   // if current buffer is too big, subdivide buffer
   if (current_udp_bytes > MAX_UDP_BUFFER_BYTES)
   {
@@ -118,15 +127,24 @@ void SendDataToMobile()
     // recalculate package size
     current_udp_bytes = num_elements_per_buffer * sizeof(int32_t);
 
+    flag_prepended_buffer.resize(num_elements_per_buffer + 1);
+
+    flag_prepended_buffer[0] = FLAG_POINT_DATA;
+
     for (int i = 0; i < num_split_buffers; i++)
     {
-      sent_bytes = sendto(SEND_SOCK, s_pos_buffer.data() + i * num_elements_per_buffer, current_udp_bytes, 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
+      std::memcpy(flag_prepended_buffer.data() + 1, s_pos_buffer.data() + i * num_elements_per_buffer, current_udp_bytes);
+      sent_bytes = sendto(s_send_sock, flag_prepended_buffer.data(), flag_prepended_buffer.size() * sizeof(int), 0, (struct sockaddr*)&s_phone_adress, sizeof(s_phone_adress));
     }
   }
   else
   {
+    flag_prepended_buffer.resize(s_buffer_num_elements + 1);
 
-    sent_bytes = sendto(SEND_SOCK, s_pos_buffer.data(), current_udp_bytes, 0, (struct sockaddr*)&PHONE_ADDR, sizeof(PHONE_ADDR));
+    flag_prepended_buffer[0] = FLAG_POINT_DATA;
+
+    std::memcpy(flag_prepended_buffer.data() + 1, s_pos_buffer.data(), current_udp_bytes);
+    sent_bytes = sendto(s_send_sock, flag_prepended_buffer.data(), flag_prepended_buffer.size() * sizeof(int), 0, (struct sockaddr*)&s_phone_adress, sizeof(s_phone_adress));
   }
 
   if (sent_bytes < 0)
@@ -188,6 +206,11 @@ void ImuDataCallback(uint32_t handle, const uint8_t dev_type, LivoxLidarEthernet
   {
     LivoxLidarImuRawPoint *imu_data = (LivoxLidarImuRawPoint *)data->data;
     s_current_imu_data = *imu_data;
+
+    std::vector<int32_t> flag_prepended_buffer;
+
+    // TODO: send IMU data
+    //flag_prepended_buffer[0] = FLAG_POINT_DATA;
   }
 }
 
@@ -200,12 +223,15 @@ bool is_number(const std::string& s) {
 
 int main(int argc, const char *argv[]) 
 {
+  #if 0
   if (argc != 2 || !is_number(argv[1]) || std::atof(argv[1]) < 0) {
     printf("Params Invalid, please specify the data rate in milliseconds (integer).\n");
     return -1;
   }
-
+  
   float update_rate = std::atof(argv[1]);
+  #endif
+  float update_rate = 50;
 
   if (update_rate != 0)
   {
@@ -217,26 +243,26 @@ int main(int argc, const char *argv[])
 
   s_total_num_points = NUM_POINTS_PER_PACKAGE * s_num_packages;
   s_buffer_num_elements = s_total_num_points * 3;
-  s_pos_buffer.reserve(s_buffer_num_elements);
+  s_pos_buffer.resize(s_buffer_num_elements);
 
   std::cout << s_num_packages << " packages will be cummulated and a total of " 
             << s_total_num_points << " will be sent every " << update_rate << " milliseconds." << std::endl;
 
-  PHONE_IP = getPhoneIP();
+  s_phone_IP = getPhoneIP();
   
   // Setting up UDP data transmission to mobile device
-  SEND_SOCK = socket(AF_INET, SOCK_DGRAM, 0);
-  if (SEND_SOCK < 0) {
+  s_send_sock = socket(AF_INET, SOCK_DGRAM, 0);
+  if (s_send_sock < 0) {
     std::cerr << "Error creating UDP socket\n";
     return 1;
   }
   
-  PHONE_ADDR.sin_family = AF_INET;
-  PHONE_ADDR.sin_port = htons(PHONE_PORT);
-  inet_pton(AF_INET, PHONE_IP.c_str(), &PHONE_ADDR.sin_addr);
+  s_phone_adress.sin_family = AF_INET;
+  s_phone_adress.sin_port = htons(s_phone_port);
+  inet_pton(AF_INET, s_phone_IP.c_str(), &s_phone_adress.sin_addr);
   
   // Sending data
-  std::cout << "Sending data to " << PHONE_IP << " via port " << PHONE_PORT << std::endl;
+  std::cout << "Sending data to " << s_phone_IP << " via port " << s_phone_port << std::endl;
 
   // Setting up Livox Mid360
   // init SDK
@@ -251,7 +277,7 @@ int main(int argc, const char *argv[])
 
   SetLivoxLidarImuDataCallback(ImuDataCallback, nullptr);
 
-  // think about how to terminate the program from the phone
+  // lets program run indefinitely until it is terminated from outside
   while(true)
   {
     sleep(300);
@@ -259,6 +285,6 @@ int main(int argc, const char *argv[])
   
   // cleanup
   LivoxLidarSdkUninit();
-  close(SEND_SOCK);
+  close(s_send_sock);
   return 0;
 }
