@@ -19,7 +19,7 @@ make -j1
 ```
 
 ### Usage
-- Edit the `01-livox-receiver-network-config.yaml` in `outdoar\raspi-app` and fill in your phone's hotspot credentials. 
+- Edit the `01-livox-receiver-network-config.yaml` in `outdoar/raspi-app` and fill in your phone's hotspot credentials. 
 - Copy the config file to the netplan folder: `sudo cp ./01-livox-receiver-network-config.yaml /etc/netplan/`
 - From the terminal call `sudo netplan apply`, this will change the raspi's network config so it can receive data from the Livox MID360.
 - The raspi should now be connected to your phone's hotspot.
