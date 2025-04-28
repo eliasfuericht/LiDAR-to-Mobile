@@ -11,7 +11,9 @@ network:
       optional: true
       dhcp4: true
       access-points:
+      # change this to your hotspots name
         "Hotspot Name":
           auth:
             key-management: "psk"
+            # the hotspots password here
             password: "Hotspot Password"
