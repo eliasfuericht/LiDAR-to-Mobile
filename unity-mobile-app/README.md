@@ -1,5 +1,5 @@
 # unity-mobile-app
-Software that receives data via UDP port 8888 and visualizes the pointcloud.
+Software that receives data via UDP and visualizes the pointcloud.
 
 ## Setup & Usage
 This project was built using Windows 11, Unity 6000.0.46f1 and tested on Android 15 (Xiaomi HyperOS 2.0).
