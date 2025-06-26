@@ -1,4 +1,4 @@
-# LiDAR-to-Mobile
+# LiDAR2Mobile
 Livox MID360 to Mobile Device Project
 
 ## Functionality
